@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>新发地价格行情</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-4">
+  <h1 class="text-2xl font-bold text-gray-800 mb-6">新发地价格行情</h1>
+
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <input type="date" id="dateInput" value="{{ default_date }}" class="border border-gray-300 rounded-lg px-3 py-2">
+    <button type="button" id="btnSearch" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">查询</button>
+  </div>
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <label class="text-sm text-gray-600">菜品名称：</label>
+    <input type="text" id="nameSearch" placeholder="输入品名模糊搜索" class="border border-gray-300 rounded-lg px-3 py-2 w-48">
+    <label class="text-sm text-gray-600">一级分类：</label>
+    <select id="categorySelect" class="border border-gray-300 rounded-lg px-3 py-2">
+      <option value="">全部</option>
+      <option value="蔬菜">蔬菜</option>
+      <option value="水果">水果</option>
+      <option value="肉禽蛋">肉禽蛋</option>
+      <option value="水产">水产</option>
+      <option value="粮油">粮油</option>
+      <option value="豆制品">豆制品</option>
+      <option value="调料">调料</option>
+    </select>
+  </div>
+  <div id="progressWrap" class="hidden mb-4">
+    <div class="h-6 bg-gray-200 rounded overflow-hidden"><div id="progressFill" class="h-full bg-blue-500 transition-all" style="width:0%"></div></div>
+    <p id="progressText" class="text-sm text-gray-600 mt-1">正在拉取数据… 0%</p>
+  </div>
+  <div id="message" class="mb-3 text-sm hidden"></div>
+  <div class="overflow-x-auto bg-white rounded-lg shadow">
+    <table id="priceTable" class="w-full text-sm border-collapse">
+      <thead><tr class="bg-gray-50 border-b border-gray-200">
+        <th data-key="一级分类" class="text-left p-3 cursor-pointer hover:bg-gray-100">一级分类</th>
+        <th data-key="二级分类" class="text-left p-3 cursor-pointer hover:bg-gray-100">二级分类</th>
+        <th data-key="品名" class="text-left p-3 cursor-pointer hover:bg-gray-100">品名</th>
+        <th data-key="最低价" class="text-left p-3 cursor-pointer hover:bg-gray-100">最低价</th>
+        <th data-key="平均价" class="text-left p-3 cursor-pointer hover:bg-gray-100">平均价</th>
+        <th data-key="最高价" class="text-left p-3 cursor-pointer hover:bg-gray-100">最高价</th>
+        <th data-key="规格" class="text-left p-3 cursor-pointer hover:bg-gray-100">规格</th>
+        <th data-key="产地" class="text-left p-3 cursor-pointer hover:bg-gray-100">产地</th>
+        <th data-key="单位" class="text-left p-3 cursor-pointer hover:bg-gray-100">单位</th>
+        <th data-key="发布日期" class="text-left p-3 cursor-pointer hover:bg-gray-100">发布日期</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+  <div id="paginationBar" class="hidden mt-4 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-2 text-sm text-gray-600">
+      <span>每页</span>
+      <select id="pageSizeSelect" class="border rounded px-2 py-1"><option value="10" selected>10</option><option value="20">20</option><option value="50">50</option><option value="100">100</option></select>
+      <span>条</span>
+      <span id="paginationSummary" class="text-gray-400"></span>
+    </div>
+    <div id="paginationBtns" class="flex items-center gap-1"></div>
+  </div>
+  <p id="foot" class="mt-2 text-sm text-gray-500"></p>
+
+  <script>
+    var API = "/api/xinfadi";
+    var COLS = ["一级分类","二级分类","品名","最低价","平均价","最高价","规格","产地","单位","发布日期"];
+    var rawData = [], filteredList = [], currentPage = 1, pageSize = 10, sortKey = null, sortAsc = true;
+
+    function showMessage(text, type) {
+      var el = document.getElementById("message");
+      el.textContent = text;
+      el.className = "mb-3 text-sm " + (type === "error" ? "text-red-600" : type === "empty" ? "text-amber-600" : "text-blue-600");
+      el.style.display = text ? "block" : "none";
+    }
+    function showProgress(show, pct) {
+      var wrap = document.getElementById("progressWrap");
+      var fill = document.getElementById("progressFill");
+      var text = document.getElementById("progressText");
+      if (show) { wrap.classList.remove("hidden"); fill.style.width = (pct || 0) + "%"; text.textContent = "正在拉取数据… " + (pct || 0) + "%"; }
+      else { wrap.classList.add("hidden"); }
+    }
+    function renderTable(data) {
+      var tbody = document.getElementById("tbody");
+      tbody.innerHTML = "";
+      if (!data || !data.length) return;
+      data.forEach(function(row) {
+        var tr = document.createElement("tr");
+        tr.className = "border-b border-gray-100 hover:bg-gray-50";
+        COLS.forEach(function(k) { var td = document.createElement("td"); td.className = "p-3"; td.textContent = row[k] != null ? row[k] : ""; tr.appendChild(td); });
+        tbody.appendChild(tr);
+      });
+    }
+    function renderPagination() {
+      var total = filteredList.length, bar = document.getElementById("paginationBar"), summaryEl = document.getElementById("paginationSummary"), btnsEl = document.getElementById("paginationBtns");
+      if (total === 0) { bar.classList.add("hidden"); document.getElementById("foot").textContent = rawData.length > 0 ? "筛选后 0 条" : ""; renderTable([]); return; }
+      bar.classList.remove("hidden");
+      var totalPages = Math.max(1, Math.ceil(total / pageSize));
+      if (currentPage > totalPages) currentPage = totalPages;
+      var start = (currentPage - 1) * pageSize, end = Math.min(start + pageSize, total);
+      summaryEl.textContent = "共 " + total + " 条" + (rawData.length > 0 && total < rawData.length ? "（从 " + rawData.length + " 条中筛选）" : "");
+      document.getElementById("foot").textContent = "第 " + (start + 1) + "–" + end + " 条，共 " + total + " 条";
+      btnsEl.innerHTML = "";
+      function addBtn(label, disabled, onClick) { var b = document.createElement("button"); b.className = "px-2 py-1 border rounded text-sm " + (disabled ? "text-gray-400 border-gray-200 cursor-not-allowed" : "border-gray-300 hover:border-blue-500 hover:text-blue-600"); b.textContent = label; b.disabled = disabled; b.onclick = onClick; btnsEl.appendChild(b); }
+      addBtn("上一页", currentPage <= 1, function() { if (currentPage > 1) { currentPage--; renderPage(); } });
+      var from = Math.max(1, currentPage - 2), to = Math.min(totalPages, from + 4);
+      if (to - from < 4) from = Math.max(1, to - 4);
+      for (var i = from; i <= to; i++) (function(p) {
+        var b = document.createElement("button");
+        b.className = "min-w-[32px] py-1 border rounded text-sm " + (p === currentPage ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 hover:border-blue-500");
+        b.textContent = p; b.onclick = function() { currentPage = p; renderPage(); };
+        btnsEl.appendChild(b);
+      })(i);
+      addBtn("下一页", currentPage >= totalPages, function() { if (currentPage < totalPages) { currentPage++; renderPage(); } });
+    }
+    function renderPage() {
+      var total = filteredList.length, totalPages = Math.max(1, Math.ceil(total / pageSize));
+      if (currentPage > totalPages) currentPage = totalPages;
+      var start = (currentPage - 1) * pageSize, pageData = filteredList.slice(start, start + pageSize);
+      renderTable(pageData); renderPagination();
+    }
+    function applySort() {
+      if (!sortKey || !filteredList.length) return;
+      filteredList = filteredList.slice().sort(function(a, b) {
+        var va = a[sortKey] != null ? String(a[sortKey]).trim() : "", vb = b[sortKey] != null ? String(b[sortKey]).trim() : "";
+        var na = Number(va), nb = Number(vb);
+        if (!isNaN(na) && !isNaN(nb)) return sortAsc ? na - nb : nb - na;
+        return sortAsc ? (va < vb ? -1 : va > vb ? 1 : 0) : (vb < va ? -1 : vb > va ? 1 : 0);
+      });
+    }
+    function applyFilter() {
+      var nameLike = (document.getElementById("nameSearch").value || "").trim().toLowerCase(), category = (document.getElementById("categorySelect").value || "").trim();
+      filteredList = rawData.filter(function(row) {
+        var nameOk = !nameLike || (row["品名"] && row["品名"].toLowerCase().indexOf(nameLike) !== -1);
+        var catOk = !category || (row["一级分类"] === category);
+        return nameOk && catOk;
+      });
+      applySort(); currentPage = 1; renderPage();
+    }
+    function fetchData(date, then) {
+      fetch(API + "/data?date=" + encodeURIComponent(date)).then(function(r) { return r.json(); }).then(then).catch(function(e) { showMessage("请求失败：" + e.message, "error"); then({ data: [] }); });
+    }
+    function startCrawl(date, onDone) {
+      fetch(API + "/crawl?date=" + encodeURIComponent(date), { method: "POST" }).then(function(r) { return r.json(); }).then(function(body) {
+        if (body.status === "cached" || body.status === "done") { fetchData(date, onDone); return; }
+        if (body.status === "busy") { showMessage(body.message || "请稍候再试", "error"); return; }
+        if (body.status === "error") { showMessage("爬取失败：" + (body.message || ""), "error"); return; }
+        showProgress(true, body.progress || 0);
+        var poll = function() {
+          fetch(API + "/progress?date=" + encodeURIComponent(date)).then(function(r) { return r.json(); }).then(function(p) {
+            showProgress(true, p.progress);
+            if (p.status === "done") { showProgress(false); fetchData(date, onDone); return; }
+            if (p.status === "error") { showProgress(false); showMessage("爬取失败：" + (p.message || ""), "error"); return; }
+            setTimeout(poll, 500);
+          });
+        };
+        poll();
+      }).catch(function(e) { showMessage("请求失败：" + e.message, "error"); });
+    }
+    function doQuery() {
+      var date = document.getElementById("dateInput").value;
+      if (!date) { showMessage("请选择日期", "error"); return; }
+      showMessage(""); document.getElementById("btnSearch").disabled = true;
+      fetchData(date, function(res) {
+        if (res.data && res.data.length > 0) { rawData = res.data; applyFilter(); showMessage(""); document.getElementById("btnSearch").disabled = false; return; }
+        if (res.status === "crawling" || (res.data && res.data.length === 0 && !res.error)) {
+          startCrawl(date, function(res2) { rawData = res2.data || []; applyFilter(); if (rawData.length === 0) showMessage("该日期暂无报价数据", "empty"); document.getElementById("btnSearch").disabled = false; });
+          return;
+        }
+        if (res.error) showMessage("错误：" + res.error, "error"); else showMessage("该日期暂无报价数据", "empty");
+        rawData = []; renderTable([]); document.getElementById("btnSearch").disabled = false;
+      });
+    }
+    document.getElementById("btnSearch").onclick = doQuery;
+    document.getElementById("nameSearch").oninput = applyFilter; document.getElementById("categorySelect").onchange = applyFilter;
+    document.getElementById("pageSizeSelect").onchange = function() { pageSize = parseInt(this.value, 10); currentPage = 1; if (filteredList.length > 0) renderPage(); };
+    var thead = document.querySelector("#priceTable thead tr"); if (thead) thead.querySelectorAll("th").forEach(function(th) {
+      th.onclick = function() { var key = th.getAttribute("data-key"); if (COLS.indexOf(key) === -1) return; sortAsc = sortKey === key ? !sortAsc : true; sortKey = key; applySort(); renderPage(); };
+    });
+    if (document.getElementById("dateInput").value) doQuery();
+  </script>
+</body>
+</html>

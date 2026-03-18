@@ -1,0 +1,16 @@
+services:
+  agent:
+    build: .
+    image: agent:latest
+    container_name: Agent
+    ports:
+      - "8000:8000"
+    volumes:
+      # 持久化数据库、数据集、模型、日志等
+      - agent-data:/app/backend/data
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+volumes:
+  agent-data:

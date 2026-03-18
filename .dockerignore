@@ -1,0 +1,29 @@
+# Git
+.git
+.gitignore
+
+# 前端
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+# 后端
+backend/__pycache__
+backend/**/__pycache__
+backend/.mypy_cache
+backend/.env
+backend/data
+backend/*.db
+backend/preset_vegetable_model
+backend/.pytest_cache
+backend/.ruff_cache
+
+# 通用
+*.pyc
+*.pyo
+.env
+.env.*
+*.md
+.DS_Store
+Thumbs.db
+*.log
