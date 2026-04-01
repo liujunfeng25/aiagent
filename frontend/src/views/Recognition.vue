@@ -1,6 +1,7 @@
 <template>
   <div class="recognition-page">
     <h2 class="page-title">识别中心</h2>
+    <p class="page-desc">图像分类：判断照片里是哪一类货品（需先训练或部署模型）。单据表格请用侧栏「票据识别」。</p>
     <el-card v-if="!status.deployed" class="tip-card">
       <el-alert type="warning" show-icon :closable="false">
         <span>当前没有已部署的模型。</span>
@@ -199,7 +200,8 @@ onMounted(() => { loadStatus(); loadPresetAvailable(); loadTestImages() })
 </script>
 
 <style scoped>
-.page-title { margin-bottom: 16px; font-size: 20px; }
+.page-title { margin-bottom: 8px; font-size: 20px; }
+.page-desc { margin: 0 0 16px 0; font-size: 13px; color: #64748b; line-height: 1.5; }
 .tip-card { margin-bottom: 16px; }
 .current-model { color: #606266; font-size: 14px; }
 .upload-area { width: 100%; }

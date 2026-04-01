@@ -12,15 +12,15 @@
             <el-icon><Connection /></el-icon>
             <span>数据源</span>
           </el-menu-item>
-          <el-menu-item index="/datasets">
+          <el-menu-item index="/datasets" title="训练用图片数据集，与业务库分析无关">
             <el-icon><Folder /></el-icon>
             <span>数据集</span>
           </el-menu-item>
-          <el-menu-item index="/categories">
+          <el-menu-item index="/categories" title="按类别文件夹管理图片，可一键参与训练">
             <el-icon><Collection /></el-icon>
             <span>类别管理</span>
           </el-menu-item>
-          <el-menu-item index="/training">
+          <el-menu-item index="/training" title="使用数据集或类别目录训练分类模型">
             <el-icon><VideoPlay /></el-icon>
             <span>训练管理</span>
           </el-menu-item>
@@ -28,13 +28,17 @@
             <el-icon><Box /></el-icon>
             <span>模型库</span>
           </el-menu-item>
-          <el-menu-item index="/recognition">
+          <el-menu-item index="/recognition" title="图像分类识别（货品是哪一类）">
             <el-icon><PictureFilled /></el-icon>
             <span>识别中心</span>
           </el-menu-item>
-          <el-menu-item index="/analysis">
+          <el-menu-item index="/documents" title="送货单等表格 OCR 与双单对比">
+            <el-icon><Document /></el-icon>
+            <span>票据识别</span>
+          </el-menu-item>
+          <el-menu-item index="/insights" title="订单与销售、新发地行情、缺货背单、库内价格指数（近一年）">
             <el-icon><DataAnalysis /></el-icon>
-            <span>分析中心</span>
+            <span>数据洞察</span>
           </el-menu-item>
           <el-menu-item index="/price">
             <el-icon><TrendCharts /></el-icon>
@@ -60,7 +64,7 @@
 
 <script setup>
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
-import { Odometer, Connection, Folder, Collection, VideoPlay, Box, PictureFilled, DataAnalysis, TrendCharts, Setting } from '@element-plus/icons-vue'
+import { Odometer, Connection, Folder, Collection, VideoPlay, Box, PictureFilled, Document, DataAnalysis, TrendCharts, Setting } from '@element-plus/icons-vue'
 </script>
 
 <style>

@@ -9,6 +9,7 @@ from config import TOP_K, INFERENCE_DEVICE, TEST_IMAGES_DIR, PRESET_VEGETABLE_MO
 from app.database import get_db
 from app.models import Model
 from app.services.inference import recognize
+from app.services.inference_stats import increment_image_recognition
 
 router = APIRouter()
 
@@ -109,6 +110,7 @@ async def recognize_image(
         device=INFERENCE_DEVICE,
         top_k=TOP_K,
     )
+    increment_image_recognition()
     return {
         "results": results,
         "model_id": m.id,

@@ -7,7 +7,10 @@ const request = axios.create({
 
 request.interceptors.response.use(
   (res) => res.data,
-  (err) => Promise.reject(err.response?.data?.detail || err.message)
+  (err) =>
+    Promise.reject(
+      err.response?.data?.detail || err.response?.data?.error || err.message
+    )
 )
 
 export default request

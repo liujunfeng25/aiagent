@@ -1,6 +1,13 @@
 <template>
-  <div>
-    <h2 class="page-title">分析中心</h2>
+  <div :class="{ 'analysis-embed': embedded }">
+    <h2 v-if="!embedded" class="page-title">分析中心</h2>
+    <el-alert
+      type="info"
+      show-icon
+      :closable="false"
+      class="page-hint"
+      title="仅查询已配置的「数据源」中的业务库（只读 SELECT）。与「数据集」菜单中的训练用数据集不是同一套数据。"
+    />
     <el-card>
       <el-form :inline="true">
         <el-form-item label="数据源">
@@ -20,6 +27,10 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+
+defineProps({
+  embedded: { type: Boolean, default: false },
+})
 import { ElMessage } from 'element-plus'
 import { runQuery as apiRunQuery } from '../api/analysis'
 import { list as listDataSources } from '../api/datasources'
@@ -51,5 +62,7 @@ onMounted(load)
 </script>
 
 <style scoped>
-.page-title { margin-bottom: 16px; font-size: 20px; }
+.page-title { margin-bottom: 12px; font-size: 20px; }
+.page-hint { margin-bottom: 16px; }
+.analysis-embed .page-hint { margin-top: 0; }
 </style>

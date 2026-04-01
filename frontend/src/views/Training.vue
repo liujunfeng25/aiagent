@@ -5,8 +5,10 @@
     <el-card class="card-start">
       <template #header>开始训练</template>
       <p class="card-hint">
-        请先在 <router-link to="/categories">类别管理</router-link> 中创建类别并上传至少 20 张图片，至少 2 个类别；
-        或选择下方数据集（需为按类别分文件夹的图片）。
+        <strong>数据从哪来：</strong>
+        <router-link to="/categories">类别管理</router-link> 与
+        <router-link to="/datasets">数据集</router-link> 是两套路——类别目录适合快速攒图、一键「用类别数据训练」；
+        数据集适合上传 ZIP、组合多源或从数据源导出后再训。二者选其一准备好「按文件夹分好类的图片」即可，不必两边重复维护同一批图。
       </p>
       <div class="form-row">
         <div class="form-group">

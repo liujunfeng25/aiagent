@@ -30,7 +30,7 @@
         <el-card shadow="hover">
           <div class="stat-card">
             <span class="stat-value">{{ stats.inference_today }}</span>
-            <span class="stat-label">今日推理次数</span>
+            <span class="stat-label">今日图像识别次数</span>
           </div>
         </el-card>
       </el-col>

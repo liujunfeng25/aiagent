@@ -5,13 +5,57 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>新发地价格行情</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* iOS 风格开关（类似系统 Wi‑Fi 开关） */
+    .ios-toggle {
+      position: relative;
+      width: 51px;
+      height: 31px;
+      border-radius: 9999px;
+      background: #e9e9eb;
+      border: none;
+      cursor: pointer;
+      padding: 2px;
+      transition: background 0.2s ease;
+      flex-shrink: 0;
+      outline: none;
+    }
+    .ios-toggle:focus-visible {
+      box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.45);
+    }
+    .ios-toggle[aria-checked="true"] {
+      background: #34c759;
+    }
+    .ios-toggle-knob {
+      display: block;
+      width: 27px;
+      height: 27px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.18), 0 1px 1px rgba(0, 0, 0, 0.08);
+      transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+      transform: translateX(0);
+    }
+    .ios-toggle[aria-checked="true"] .ios-toggle-knob {
+      transform: translateX(20px);
+    }
+    .ios-toggle:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  </style>
 </head>
-<body class="bg-gray-50 p-4">
+<body class="bg-gray-50 p-4" data-xinfadi-api="{{ api_xinfadi | default('', true) | e }}">
   <h1 class="text-2xl font-bold text-gray-800 mb-6">新发地价格行情</h1>
 
   <div class="flex flex-wrap items-center gap-3 mb-4">
     <input type="date" id="dateInput" value="{{ default_date }}" class="border border-gray-300 rounded-lg px-3 py-2">
     <button type="button" id="btnSearch" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">查询</button>
+    <div class="flex items-center gap-2 pl-1" title="开启后翻页间隔更长，减轻对方站点压力">
+      <span class="text-sm text-gray-600 whitespace-nowrap">礼貌爬取</span>
+      <button type="button" id="politeSwitch" class="ios-toggle" role="switch" aria-checked="false" aria-label="礼貌爬取"><span class="ios-toggle-knob"></span></button>
+      <span id="politeStateText" class="text-sm text-gray-500 min-w-[4.5rem]">…</span>
+    </div>
   </div>
   <div class="flex flex-wrap items-center gap-3 mb-4">
     <label class="text-sm text-gray-600">菜品名称：</label>
@@ -62,7 +106,24 @@
   <p id="foot" class="mt-2 text-sm text-gray-500"></p>
 
   <script>
-    var API = "/api/xinfadi";
+    /* 基址强制为「…/api/xinfadi」末尾，忽略 data 属性里多出来的路径段（避免出现 …/sqlite…/polite_crawl 等畸形 URL） */
+    function normalizeXinfadiApiBase(raw) {
+      raw = String(raw || "").trim();
+      if (!raw) return "/api/xinfadi";
+      try {
+        var u = new URL(raw, window.location.href);
+        u.pathname = "/api/xinfadi";
+        u.search = "";
+        u.hash = "";
+        if (u.origin === window.location.origin) return "/api/xinfadi";
+        return u.toString().replace(/\/$/, "");
+      } catch (e) {
+        return "/api/xinfadi";
+      }
+    }
+    var API = normalizeXinfadiApiBase(
+      document.body && document.body.getAttribute("data-xinfadi-api")
+    );
     var COLS = ["一级分类","二级分类","品名","最低价","平均价","最高价","规格","产地","单位","发布日期"];
     var rawData = [], filteredList = [], currentPage = 1, pageSize = 10, sortKey = null, sortAsc = true;
 
@@ -72,12 +133,23 @@
       el.className = "mb-3 text-sm " + (type === "error" ? "text-red-600" : type === "empty" ? "text-amber-600" : "text-blue-600");
       el.style.display = text ? "block" : "none";
     }
-    function showProgress(show, pct) {
+    function showProgress(show, pct, detail) {
       var wrap = document.getElementById("progressWrap");
       var fill = document.getElementById("progressFill");
       var text = document.getElementById("progressText");
-      if (show) { wrap.classList.remove("hidden"); fill.style.width = (pct || 0) + "%"; text.textContent = "正在拉取数据… " + (pct || 0) + "%"; }
-      else { wrap.classList.add("hidden"); }
+      if (show) {
+        wrap.classList.remove("hidden");
+        fill.style.width = (pct || 0) + "%";
+        var line = "正在拉取数据… " + (pct || 0) + "%";
+        if (detail && detail.page > 0) {
+          line += " · 第 " + detail.page + " 页";
+          if (detail.est_pages > 0) line += " / 约 " + detail.est_pages + " 页";
+          line += " · 百分比在「请求某一页」时会停住，新发地慢时可能达数十秒";
+        }
+        text.textContent = line;
+      } else {
+        wrap.classList.add("hidden");
+      }
     }
     function renderTable(data) {
       var tbody = document.getElementById("tbody");
@@ -136,47 +208,231 @@
       });
       applySort(); currentPage = 1; renderPage();
     }
-    function fetchData(date, then) {
-      fetch(API + "/data?date=" + encodeURIComponent(date)).then(function(r) { return r.json(); }).then(then).catch(function(e) { showMessage("请求失败：" + e.message, "error"); then({ data: [] }); });
+    function normDay(s) {
+      if (s == null || s === "") return "";
+      var t = String(s).trim().replace(/\//g, "-").split(/\s+/)[0];
+      var parts = t.split("-");
+      if (parts.length === 3) {
+        var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10), d = parseInt(parts[2], 10);
+        if (!isNaN(y) && !isNaN(m) && !isNaN(d))
+          return y + "-" + String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+      }
+      return t.slice(0, 10);
     }
-    function startCrawl(date, onDone) {
-      fetch(API + "/crawl?date=" + encodeURIComponent(date), { method: "POST" }).then(function(r) { return r.json(); }).then(function(body) {
-        if (body.status === "cached" || body.status === "done") { fetchData(date, onDone); return; }
-        if (body.status === "busy") { showMessage(body.message || "请稍候再试", "error"); return; }
-        if (body.status === "error") { showMessage("爬取失败：" + (body.message || ""), "error"); return; }
-        showProgress(true, body.progress || 0);
-        var poll = function() {
-          fetch(API + "/progress?date=" + encodeURIComponent(date)).then(function(r) { return r.json(); }).then(function(p) {
-            showProgress(true, p.progress);
-            if (p.status === "done") { showProgress(false); fetchData(date, onDone); return; }
-            if (p.status === "error") { showProgress(false); showMessage("爬取失败：" + (p.message || ""), "error"); return; }
-            setTimeout(poll, 500);
-          });
-        };
-        poll();
-      }).catch(function(e) { showMessage("请求失败：" + e.message, "error"); });
+    function rowsForSelectedDate(rows, dateYmd) {
+      var want = normDay(dateYmd);
+      if (!want || !rows || !rows.length) return [];
+      return rows.filter(function(row) { return normDay(row["发布日期"]) === want; });
     }
-    function doQuery() {
-      var date = document.getElementById("dateInput").value;
-      if (!date) { showMessage("请选择日期", "error"); return; }
-      showMessage(""); document.getElementById("btnSearch").disabled = true;
-      fetchData(date, function(res) {
-        if (res.data && res.data.length > 0) { rawData = res.data; applyFilter(); showMessage(""); document.getElementById("btnSearch").disabled = false; return; }
-        if (res.status === "crawling" || (res.data && res.data.length === 0 && !res.error)) {
-          startCrawl(date, function(res2) { rawData = res2.data || []; applyFilter(); if (rawData.length === 0) showMessage("该日期暂无报价数据", "empty"); document.getElementById("btnSearch").disabled = false; });
+    function sleep(ms) {
+      return new Promise(function(resolve) { setTimeout(resolve, ms); });
+    }
+    function apiQs(date) {
+      return "?date=" + encodeURIComponent(date) + "&_t=" + Date.now();
+    }
+    async function getData(date) {
+      var r = await fetch(API + "/data" + apiQs(date), { cache: "no-store" });
+      var body = await r.json();
+      body.__httpStatus = r.status;
+      return body;
+    }
+    async function getProgress(date) {
+      var r = await fetch(API + "/progress" + apiQs(date), { cache: "no-store" });
+      return r.json();
+    }
+    async function postCrawl(date) {
+      var r = await fetch(API + "/crawl" + apiQs(date), { method: "POST", cache: "no-store" });
+      var body = await r.json();
+      return { ok: r.ok, status: r.status, body: body };
+    }
+    function setPoliteSwitchVisual(on) {
+      var sw = document.getElementById("politeSwitch");
+      var tx = document.getElementById("politeStateText");
+      if (!sw) return;
+      sw.dataset.polite = on ? "1" : "0";
+      sw.setAttribute("aria-checked", on ? "true" : "false");
+      if (tx) tx.textContent = on ? "开（礼貌）" : "关（快速）";
+    }
+    async function refreshPoliteSwitch() {
+      var sw = document.getElementById("politeSwitch");
+      var tx = document.getElementById("politeStateText");
+      if (!sw) return;
+      try {
+        var r = await fetch(API + "/polite_crawl", { cache: "no-store" });
+        var j = await r.json();
+        setPoliteSwitchVisual(!!j.polite);
+      } catch (e) {
+        if (tx) tx.textContent = "加载失败";
+      }
+    }
+    function finishQueryBtn() {
+      document.getElementById("btnSearch").disabled = false;
+    }
+    function applyRowsFromResponse(res, date) {
+      var preLen = (res.data || []).length;
+      rawData = rowsForSelectedDate(res.data || [], date);
+      // #region agent log
+      fetch("http://127.0.0.1:7276/ingest/6d3c54df-50ec-4e39-9bb7-0672eb5cf37c", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "32f924" }, body: JSON.stringify({ sessionId: "32f924", location: "price.html:applyRowsFromResponse", message: "apply", data: { date: date, resDataLen: preLen, afterClientFilterLen: rawData.length }, timestamp: Date.now(), hypothesisId: "H5" }) }).catch(function () {});
+      // #endregion
+      applyFilter();
+      if (rawData.length === 0) {
+        var rows = res.data || [];
+        showMessage(rows.length > 0 ? "返回数据发布日期与所选日期不一致" : "该日期暂无报价数据", rows.length > 0 ? "error" : "empty");
+      } else {
+        showMessage("");
+      }
+    }
+    async function crawlPipeline(date) {
+      var x = await postCrawl(date);
+      var body = x.body;
+      if (x.status === 409 && body && body.status === "busy") {
+        showMessage((body.message || "请稍候再试") + (body.busy_date ? "（当前正在拉取：" + body.busy_date + "）" : ""), "error");
+        return;
+      }
+      if (!x.ok) {
+        showMessage("请求失败：" + (body && (body.message || body.detail) ? (body.message || body.detail) : x.status), "error");
+        return;
+      }
+      if (body.status === "skipped_history") {
+        showProgress(false);
+        showMessage(body.message || "该日期未在本地缓存且超出演示允许的历史范围，已跳过全量拉取。", "error");
+        return;
+      }
+      if (body.status === "cached" || body.status === "done") {
+        applyRowsFromResponse(await getData(date), date);
+        return;
+      }
+      if (body.status === "busy") {
+        showMessage((body.message || "请稍候再试") + (body.busy_date ? "（当前正在拉取：" + body.busy_date + "）" : ""), "error");
+        return;
+      }
+      if (body.status === "error") {
+        showMessage("爬取失败：" + (body.message || ""), "error");
+        return;
+      }
+      showProgress(true, body.progress || 0, null);
+      var idleStreak = 0;
+      for (;;) {
+        var p = await getProgress(date);
+        if (p.status === "done") {
+          showProgress(false);
+          applyRowsFromResponse(await getData(date), date);
           return;
         }
-        if (res.error) showMessage("错误：" + res.error, "error"); else showMessage("该日期暂无报价数据", "empty");
-        rawData = []; renderTable([]); document.getElementById("btnSearch").disabled = false;
-      });
+        if (p.status === "error") {
+          showProgress(false);
+          showMessage("爬取失败：" + (p.message || ""), "error");
+          return;
+        }
+        if (p.status === "idle") {
+          idleStreak++;
+          if (idleStreak < 10) {
+            await sleep(400);
+            continue;
+          }
+          var res = await getData(date);
+          if (res.data && res.data.length > 0) {
+            showProgress(false);
+            applyRowsFromResponse(res, date);
+            return;
+          }
+          if (res.error) {
+            showProgress(false);
+            showMessage("错误：" + res.error, "error");
+            return;
+          }
+          showProgress(false);
+          showMessage("拉取状态已丢失（可能后端重启、任务异常结束或与浏览器不同步）。请再点一次「查询」。", "error");
+          return;
+        }
+        idleStreak = 0;
+        showProgress(true, p.progress, { page: p.page, est_pages: p.est_pages });
+        await sleep(500);
+      }
     }
-    document.getElementById("btnSearch").onclick = doQuery;
+    async function runQuery() {
+      var date = document.getElementById("dateInput").value;
+      if (!date) {
+        showMessage("请选择日期", "error");
+        return;
+      }
+      showMessage("");
+      showProgress(false);
+      rawData = [];
+      filteredList = [];
+      sortKey = null;
+      currentPage = 1;
+      renderTable([]);
+      document.getElementById("paginationBar").classList.add("hidden");
+      document.getElementById("foot").textContent = "";
+      document.getElementById("btnSearch").disabled = true;
+      try {
+        var res = await getData(date);
+        /* 首包返回后立刻恢复「查询」，避免 crawlPipeline 长时间轮询时按钮一直灰掉 */
+        finishQueryBtn();
+        // #region agent log
+        fetch("http://127.0.0.1:7276/ingest/6d3c54df-50ec-4e39-9bb7-0672eb5cf37c", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "32f924" }, body: JSON.stringify({ sessionId: "32f924", location: "price.html:runQuery:afterGetData", message: "first_fetch", data: { date: date, dataLen: (res.data && res.data.length) || 0, httpStatus: res.__httpStatus, bodyStatus: res.status || null, err: res.error ? String(res.error).slice(0, 120) : null }, timestamp: Date.now(), hypothesisId: "H4", runId: "post-fix" }) }).catch(function () {});
+        // #endregion
+        if (res.data && res.data.length > 0) {
+          rawData = rowsForSelectedDate(res.data, date);
+          // #region agent log
+          fetch("http://127.0.0.1:7276/ingest/6d3c54df-50ec-4e39-9bb7-0672eb5cf37c", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "32f924" }, body: JSON.stringify({ sessionId: "32f924", location: "price.html:runQuery:cacheHit", message: "client_filter", data: { date: date, serverRows: res.data.length, afterClientFilter: rawData.length }, timestamp: Date.now(), hypothesisId: "H5" }) }).catch(function () {});
+          // #endregion
+          if (rawData.length > 0) {
+            applyFilter();
+            showMessage("");
+            return;
+          }
+          showMessage("接口返回的发布日期与所选日期不一致（所选 " + normDay(date) + "）。若刚切换日期，请等待其它日期的拉取结束后再查。", "error");
+          renderTable([]);
+          return;
+        }
+        if (res.status === "crawling" || (res.data && res.data.length === 0 && !res.error)) {
+          await crawlPipeline(date);
+          return;
+        }
+        if (res.error) showMessage("错误：" + res.error, "error");
+        else showMessage("该日期暂无报价数据", "empty");
+        rawData = [];
+        renderTable([]);
+      } catch (e) {
+        showProgress(false);
+        showMessage("请求失败：" + (e && e.message ? e.message : String(e)), "error");
+      } finally {
+        finishQueryBtn();
+      }
+    }
+    document.getElementById("btnSearch").onclick = function() { runQuery(); };
+    document.getElementById("politeSwitch").onclick = async function() {
+      var sw = this;
+      if (sw.disabled) return;
+      var next = sw.dataset.polite !== "1";
+      sw.disabled = true;
+      try {
+        var body = new URLSearchParams();
+        body.set("polite", next ? "true" : "false");
+        var r = await fetch(API + "/polite_crawl", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: body.toString(),
+          cache: "no-store"
+        });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        await refreshPoliteSwitch();
+        showMessage(next ? "已开启礼貌爬取（翻页更慢）" : "已关闭礼貌爬取（快速拉取）", "info");
+      } catch (e) {
+        showMessage("切换失败：" + (e && e.message ? e.message : String(e)), "error");
+      } finally {
+        sw.disabled = false;
+      }
+    };
+    refreshPoliteSwitch();
     document.getElementById("nameSearch").oninput = applyFilter; document.getElementById("categorySelect").onchange = applyFilter;
     document.getElementById("pageSizeSelect").onchange = function() { pageSize = parseInt(this.value, 10); currentPage = 1; if (filteredList.length > 0) renderPage(); };
     var thead = document.querySelector("#priceTable thead tr"); if (thead) thead.querySelectorAll("th").forEach(function(th) {
       th.onclick = function() { var key = th.getAttribute("data-key"); if (COLS.indexOf(key) === -1) return; sortAsc = sortKey === key ? !sortAsc : true; sortKey = key; applySort(); renderPage(); };
     });
-    if (document.getElementById("dateInput").value) doQuery();
+    if (document.getElementById("dateInput").value) runQuery();
   </script>
 </body>
 </html>

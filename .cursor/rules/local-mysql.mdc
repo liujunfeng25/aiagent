@@ -1,0 +1,11 @@
+---
+description: 本仓库本地开发用 MySQL（Docker）连接约定
+alwaysApply: true
+---
+
+# 本地 MySQL（本项目）
+
+- **来源**：仓库根目录 `docker-compose.yml` 中的 `mysql` 服务，容器名 `agent-mysql`。
+- **镜像**：`docker.1ms.run/library/mysql:8.0`（国内拉官方 hub 易失败时用此镜像；可改回 `mysql:8.0`）。
+- **连接（Navicat / 应用）**：主机 `127.0.0.1`，端口 **3307**，用户 `root`，密码 `116165`，数据库 **`agent`**。
+- **启动**：在项目根执行 `docker compose up -d mysql`。

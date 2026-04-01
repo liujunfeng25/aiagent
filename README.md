@@ -26,6 +26,8 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
+「报价抓取 / 新发地」模块的进度与缓存保存在进程内存中，开发时请使用**单 worker**（不要加 `uvicorn --workers N`，`N>1` 时各进程状态不一致）。
+
 ### 2. 前端（开发模式）
 
 ```bash
@@ -34,7 +36,7 @@ npm install
 npm run dev
 ```
 
-访问 http://localhost:5173 ，前端会代理 `/api` 到后端 8000 端口。
+访问 http://localhost:5173 ，前端会代理 `/api`、`/admin` 到后端 **8000** 端口（与 `vite.config.js` 中 `target` 一致）。
 
 ### 3. 生产部署
 
@@ -73,6 +75,11 @@ datasets/{id}/
 
 至少需要 2 个类别，每类至少几张图片。
 
+## 新发地报价抓取
+
+- 默认请求 `http://www.xinfadi.com.cn/getPriceData.html`（可在环境变量 `XINFADI_PRICE_API` 中改为其它可用地址）。
+- 爬虫会话使用 `requests.Session(trust_env=False)`，避免本机错误 HTTP 代理导致长时间卡在 0%。
+
 ## API 文档
 
-启动后端后访问 http://localhost:8000/docs
+启动后端后访问 http://localhost:8000/docs（若使用其它端口请相应修改）。

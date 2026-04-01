@@ -1,6 +1,13 @@
 <template>
   <div>
     <h2 class="page-title">数据集管理</h2>
+    <el-alert
+      type="info"
+      show-icon
+      :closable="false"
+      class="page-hint"
+      title="用于训练管理的图片包：上传、组合或与数据源关联。业务库联查请用「分析中心」并先配置数据源。"
+    />
     <el-card>
       <div class="toolbar">
         <el-button type="primary" @click="showCreateComposite">创建组合</el-button>
@@ -170,6 +177,7 @@ onMounted(load)
 </script>
 
 <style scoped>
-.page-title { margin-bottom: 16px; font-size: 20px; }
+.page-title { margin-bottom: 12px; font-size: 20px; }
+.page-hint { margin-bottom: 16px; }
 .toolbar { margin-bottom: 16px; }
 </style>

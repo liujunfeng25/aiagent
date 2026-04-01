@@ -1,8 +1,13 @@
 import json
+from datetime import datetime, timedelta, time
+
 from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlalchemy.orm import Session
+
 from app.database import get_db
 from app.models import Dataset, TrainTask, Model
+from app.services.inference_stats import get_image_recognition_today
 
 router = APIRouter()
 
@@ -16,7 +21,7 @@ def get_stats(db: Session = Depends(get_db)):
         "model_count": model_count,
         "dataset_count": dataset_count,
         "task_count": task_count,
-        "inference_today": 0,
+        "inference_today": get_image_recognition_today(),
     }
 
 
@@ -31,14 +36,22 @@ def _beijing_tz():
 
 @router.get("/train_trend")
 def get_train_trend(db: Session = Depends(get_db)):
-    from datetime import datetime, timedelta
     tz = _beijing_tz()
+    end_d = datetime.now(tz).date()
+    start_d = end_d - timedelta(days=6)
+    start_naive = datetime.combine(start_d, time.min)
+    day_expr = func.strftime("%Y-%m-%d", TrainTask.created_at)
+    rows = (
+        db.query(day_expr.label("day"), func.count(TrainTask.id))
+        .filter(TrainTask.created_at >= start_naive)
+        .group_by(day_expr)
+        .all()
+    )
+    count_by_day = {str(r[0]): r[1] for r in rows if r[0]}
     result = []
     for i in range(6, -1, -1):
-        d = (datetime.now(tz) - timedelta(days=i)).strftime("%Y-%m-%d")
-        tasks = db.query(TrainTask).all()
-        count = sum(1 for t in tasks if t.created_at and str(t.created_at)[:10] == d)
-        result.append({"date": d, "count": count})
+        d = (end_d - timedelta(days=i)).strftime("%Y-%m-%d")
+        result.append({"date": d, "count": count_by_day.get(d, 0)})
     return {"data": result}
 
 

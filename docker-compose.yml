@@ -1,8 +1,27 @@
 services:
+  # 本地 MySQL，供 Navicat 连接：主机 localhost / 端口 3306 / 库 agent / 用户 root / 密码见 MYSQL_ROOT_PASSWORD（仅本地开发）
+  mysql:
+    # 直连 hub 易 EOF 时可改用镜像站；海外环境可改回 mysql:8.0
+    image: docker.1ms.run/library/mysql:8.0
+    container_name: agent-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "116165"
+      MYSQL_DATABASE: agent
+      TZ: Asia/Shanghai
+    ports:
+      # 若本机 3306 已被其他 MySQL 占用（如 fastapi-mysql），改用 3307 供 Navicat 连接
+      - "3307:3306"
+    volumes:
+      - agent-mysql-data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
   agent:
     build: .
     image: agent:latest
     container_name: Agent
+    depends_on:
+      - mysql
     ports:
       - "8000:8000"
     volumes:
@@ -10,7 +29,14 @@ services:
       - agent-data:/app/backend/data
     environment:
       - PYTHONUNBUFFERED=1
+      # 容器内访问 compose 中的 MySQL 服务（宿主机 Navicat 仍用 127.0.0.1:3307）
+      - INSIGHTS_MYSQL_HOST=mysql
+      - INSIGHTS_MYSQL_PORT=3306
+      - INSIGHTS_MYSQL_USER=root
+      - INSIGHTS_MYSQL_PASSWORD=116165
+      - INSIGHTS_MYSQL_DATABASE=agent
     restart: unless-stopped
 
 volumes:
   agent-data:
+  agent-mysql-data:
