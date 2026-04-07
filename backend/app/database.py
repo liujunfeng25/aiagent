@@ -21,13 +21,21 @@ def _sxw_url(database: str) -> str:
     return (
         f"mysql+pymysql://{SXW_MYSQL_USER}:{SXW_MYSQL_PASSWORD}"
         f"@{SXW_MYSQL_HOST}:{SXW_MYSQL_PORT}/{database}"
-        f"?charset=utf8mb4"
+        f"?charset=utf8mb4&connect_timeout=5"
     )
 
 
 def get_sxw_sessionmaker(database: str):
     if database not in _sxw_engines:
-        _sxw_engines[database] = create_engine(_sxw_url(database), pool_pre_ping=True, echo=False)
+        _sxw_engines[database] = create_engine(
+            _sxw_url(database),
+            pool_pre_ping=True,
+            echo=False,
+            pool_size=3,
+            max_overflow=3,
+            pool_timeout=6,
+            pool_recycle=300,
+        )
         _sxw_sessionmakers[database] = sessionmaker(autocommit=False, autoflush=False, bind=_sxw_engines[database])
     return _sxw_sessionmakers[database]
 
