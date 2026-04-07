@@ -75,6 +75,29 @@ datasets/{id}/
 
 至少需要 2 个类别，每类至少几张图片。
 
+## 数据同步约定（仅数据集与模型）
+
+为保证多人协作时数据一致，仓库默认仅跟踪以下目录：
+
+- `backend/data/datasets/`
+- `backend/data/models/`
+
+其余运行时数据（如日志、任务缓存、测试图、上传临时文件等）保持本地，不纳入 Git。
+
+若模型文件较大，建议在团队机器上启用 Git LFS：
+
+```bash
+git lfs install
+git lfs track "*.pt" "*.pth" "*.onnx" "*.ckpt" "*.bin"
+git add .gitattributes
+```
+
+拉取后如使用了 LFS，请执行：
+
+```bash
+git lfs pull
+```
+
 ## 新发地报价抓取
 
 - 默认请求 `http://www.xinfadi.com.cn/getPriceData.html`（可在环境变量 `XINFADI_PRICE_API` 中改为其它可用地址）。

@@ -26,7 +26,11 @@ frontend/dist/
 frontend/.vite/
 
 # Project runtime data
-backend/data/
+backend/data/*
+!backend/data/datasets/
+!backend/data/datasets/**
+!backend/data/models/
+!backend/data/models/**
 backend/*.db
 backend/preset_vegetable_model/
 
