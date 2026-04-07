@@ -14,6 +14,20 @@ const routes = [
   { path: '/analysis', redirect: (to) => ({ path: '/insights', query: { ...to.query, tab: 'orders' } }) },
   { path: '/price', name: 'Price', component: () => import('../views/Price.vue'), meta: { title: '报价抓取' } },
   { path: '/system', name: 'System', component: () => import('../views/System.vue'), meta: { title: '系统管理' } },
+  { path: '/logistics', name: 'LogisticsIndex', component: () => import('../views/LogisticsIndex.vue'), meta: { title: '智能物流' } },
+  { path: '/logistics/vehicle/:id/bind', name: 'LogisticsBind', component: () => import('../views/LogisticsBind.vue'), meta: { title: '设备绑定' } },
+  { path: '/logistics/vehicle/:id/location', name: 'LogisticsVehicleLocation', component: () => import('../views/LogisticsVehicleLocation.vue'), meta: { title: '车辆位置' } },
+  { path: '/logistics/fees', name: 'LogisticsFee', component: () => import('../views/LogisticsFee.vue'), meta: { title: '物流费用' } },
+  {
+    path: '/logistics/location',
+    redirect: (to) => {
+      const vid = to.query.vehicleId
+      if (vid) {
+        return { path: `/logistics/vehicle/${vid}/location`, query: { plateno: to.query.plateno || '' } }
+      }
+      return { path: '/logistics' }
+    },
+  },
 ]
 
 export default createRouter({

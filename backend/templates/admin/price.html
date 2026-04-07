@@ -116,6 +116,14 @@
         u.search = "";
         u.hash = "";
         if (u.origin === window.location.origin) return "/api/xinfadi";
+        var loc = window.location;
+        function effPort(href) {
+          if (href.port) return href.port;
+          return href.protocol === "https:" ? "443" : "80";
+        }
+        /* 同一台机器上 uvicorn/Docker 可能把 Host 落成 127.0.0.1、容器 IP，而用户用 localhost 访问；
+           只要协议+端口与当前页一致，就统一走相对路径（对 iframe 文档 origin 发请求），避免跨源。 */
+        if (u.protocol === loc.protocol && effPort(u) === effPort(loc)) return "/api/xinfadi";
         return u.toString().replace(/\/$/, "");
       } catch (e) {
         return "/api/xinfadi";
@@ -271,9 +279,6 @@
     function applyRowsFromResponse(res, date) {
       var preLen = (res.data || []).length;
       rawData = rowsForSelectedDate(res.data || [], date);
-      // #region agent log
-      fetch("http://127.0.0.1:7276/ingest/6d3c54df-50ec-4e39-9bb7-0672eb5cf37c", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "32f924" }, body: JSON.stringify({ sessionId: "32f924", location: "price.html:applyRowsFromResponse", message: "apply", data: { date: date, resDataLen: preLen, afterClientFilterLen: rawData.length }, timestamp: Date.now(), hypothesisId: "H5" }) }).catch(function () {});
-      // #endregion
       applyFilter();
       if (rawData.length === 0) {
         var rows = res.data || [];
@@ -370,14 +375,8 @@
         var res = await getData(date);
         /* 首包返回后立刻恢复「查询」，避免 crawlPipeline 长时间轮询时按钮一直灰掉 */
         finishQueryBtn();
-        // #region agent log
-        fetch("http://127.0.0.1:7276/ingest/6d3c54df-50ec-4e39-9bb7-0672eb5cf37c", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "32f924" }, body: JSON.stringify({ sessionId: "32f924", location: "price.html:runQuery:afterGetData", message: "first_fetch", data: { date: date, dataLen: (res.data && res.data.length) || 0, httpStatus: res.__httpStatus, bodyStatus: res.status || null, err: res.error ? String(res.error).slice(0, 120) : null }, timestamp: Date.now(), hypothesisId: "H4", runId: "post-fix" }) }).catch(function () {});
-        // #endregion
         if (res.data && res.data.length > 0) {
           rawData = rowsForSelectedDate(res.data, date);
-          // #region agent log
-          fetch("http://127.0.0.1:7276/ingest/6d3c54df-50ec-4e39-9bb7-0672eb5cf37c", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "32f924" }, body: JSON.stringify({ sessionId: "32f924", location: "price.html:runQuery:cacheHit", message: "client_filter", data: { date: date, serverRows: res.data.length, afterClientFilter: rawData.length }, timestamp: Date.now(), hypothesisId: "H5" }) }).catch(function () {});
-          // #endregion
           if (rawData.length > 0) {
             applyFilter();
             showMessage("");

@@ -2,6 +2,8 @@
 百度表格文字识别 API：https://ai.baidu.com/ai-doc/OCR/Al1zvpylt
 将图片 POST 到百度 rest/2.0/ocr/v1/table，解析为与前端一致的 structured 结构。
 """
+from __future__ import annotations
+
 import base64
 import logging
 import time

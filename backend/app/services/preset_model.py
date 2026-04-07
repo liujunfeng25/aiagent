@@ -1,4 +1,6 @@
 # 预置模型注册（vegetable-recognition 集成）
+from __future__ import annotations
+
 from pathlib import Path
 
 from sqlalchemy.orm import Session

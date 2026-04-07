@@ -48,6 +48,10 @@
             <el-icon><Setting /></el-icon>
             <span>系统管理</span>
           </el-menu-item>
+          <el-menu-item index="/logistics">
+            <el-icon><Van /></el-icon>
+            <span>智能物流</span>
+          </el-menu-item>
         </el-menu>
       </el-aside>
       <el-container>
@@ -64,7 +68,7 @@
 
 <script setup>
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
-import { Odometer, Connection, Folder, Collection, VideoPlay, Box, PictureFilled, Document, DataAnalysis, TrendCharts, Setting } from '@element-plus/icons-vue'
+import { Odometer, Connection, Folder, Collection, VideoPlay, Box, PictureFilled, Document, DataAnalysis, TrendCharts, Setting, Van } from '@element-plus/icons-vue'
 </script>
 
 <style>

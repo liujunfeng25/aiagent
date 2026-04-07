@@ -1,11 +1,15 @@
+# Python 3.9：Pydantic 解析 str | None 等新语法需要
+eval-type-backport>=0.2.0
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 sqlalchemy>=2.0.0
 aiosqlite>=0.19.0
 pymysql>=1.1.0
+cryptography>=42.0.0
 python-dotenv>=1.0.0
 python-multipart>=0.0.9
 pydantic>=2.0.0
+# Docker 镜像中固定为 2.3.1/0.18.1（aarch64 上避免 torch 2.11+ 拉取 CUDA 大包与 pip 哈希失败）；本地可 pip install -U torch
 torch>=2.0.0
 torchvision>=0.15.0
 Pillow>=10.0.0

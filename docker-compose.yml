@@ -35,6 +35,28 @@ services:
       - INSIGHTS_MYSQL_USER=root
       - INSIGHTS_MYSQL_PASSWORD=116165
       - INSIGHTS_MYSQL_DATABASE=agent
+      # SXW 业务数据库（物流模块数据源）
+      - SXW_MYSQL_HOST=1.92.102.228
+      - SXW_MYSQL_PORT=3306
+      - SXW_MYSQL_USER=edu_std_supp
+      - SXW_MYSQL_PASSWORD=THwnkTSQbcCCrsey
+      - SXW_MYSQL_DATABASE=edu_std_supp
+      - SXW_MYSQL_SUPP_CODE=10133
+      # 高德地图
+      - AMAP_JSAPI_KEY=569a5415d46ab17dc766bdbd4035d55b
+      - AMAP_SECURITY_JSCODE=bf85102866042d3d6c0c00f3785bb765
+      # 北斗 GPS18
+      - GPS18_OPENAPI_BASE=http://openapi.18gps.net
+      - GPS18_LOGIN_NAME=食迅易联
+      - GPS18_LOGIN_PASSWORD=123456
+      # 萤石(YS7)摄像头
+      - YS7_APP_KEY=29707e97f5554334a511c927198ad054
+      - YS7_APP_SECRET=a2d8d535eb850a3b90b0df3e51681b5c
+      # 可选：=1 时用 m3u8 填 hls 走原生 <video>（设备须 H.264）；默认不 set，与 PHP 一致保留 ezopen + 前端 EZUIKit（可播 H.265）
+      # - YS7_BROWSER_HLS_FALLBACK=1
+      # 乐橙(IMOU)摄像头
+      - IMOU_APP_ID=lc8bd3fe83f0e9460b
+      - IMOU_APP_SECRET=36ab7437dabd488da728f4f2b527e4
     restart: unless-stopped
 
 volumes:

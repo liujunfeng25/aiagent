@@ -1,5 +1,7 @@
 # 图像识别推理模块（集成自 vegetable-recognition）
 # 支持多模型：按 (model_path, class_mapping_path) 缓存，LRU 淘汰，供按 model_id 调用的识别 API 使用
+from __future__ import annotations
+
 import json
 from pathlib import Path
 

@@ -8,6 +8,8 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 from zoneinfo import ZoneInfo
 
+import pymysql
+
 from app.business_insights import schema as S
 from app.services.business_mysql import BusinessMysqlConfig, resolve_business_mysql
 from app.services.db_connector import get_connection
@@ -26,6 +28,13 @@ def _cfg_or_503() -> BusinessMysqlConfig:
             "或在「数据源」中添加一条 MySQL 数据源。",
         )
     return cfg
+
+
+def _mysql_connect(cfg: BusinessMysqlConfig):
+    try:
+        return get_connection(cfg.host, cfg.port, cfg.database, cfg.user, cfg.password)
+    except pymysql.MySQLError as e:
+        raise HTTPException(status_code=503, detail=f"无法连接业务库：{e}") from e
 
 
 def _day_start_ts(d: date) -> int:
@@ -113,11 +122,17 @@ def orders_daily(
         GROUP BY DATE(FROM_UNIXTIME(`{ot}`))
         ORDER BY day
     """
-    conn = get_connection(cfg.host, cfg.port, cfg.database, cfg.user, cfg.password)
+    conn = _mysql_connect(cfg)
     try:
-        with conn.cursor() as cur:
-            cur.execute(sql, (t0, t1))
-            rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, (t0, t1))
+                rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
+        except pymysql.MySQLError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"业务库查询失败（MySQL 未就绪或缺表 `{S.ORDERS_TABLE}` 等）：{e}",
+            ) from e
     finally:
         conn.close()
     total_orders = sum(int(r.get("order_count") or 0) for r in rows)
@@ -153,11 +168,17 @@ def orders_top_members(
         ORDER BY gmv DESC
         LIMIT %s
     """
-    conn = get_connection(cfg.host, cfg.port, cfg.database, cfg.user, cfg.password)
+    conn = _mysql_connect(cfg)
     try:
-        with conn.cursor() as cur:
-            cur.execute(sql, (t0, t1, limit))
-            rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, (t0, t1, limit))
+                rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
+        except pymysql.MySQLError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"业务库查询失败（MySQL 未就绪或缺表 `{S.ORDERS_TABLE}` 等）：{e}",
+            ) from e
     finally:
         conn.close()
     return {
@@ -186,11 +207,17 @@ def backorder_daily(
         GROUP BY DATE(FROM_UNIXTIME(`{bt}`))
         ORDER BY day
     """
-    conn = get_connection(cfg.host, cfg.port, cfg.database, cfg.user, cfg.password)
+    conn = _mysql_connect(cfg)
     try:
-        with conn.cursor() as cur:
-            cur.execute(sql, (t0, t1))
-            rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, (t0, t1))
+                rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
+        except pymysql.MySQLError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"业务库查询失败（MySQL 未就绪或缺表 `{S.BACKORDER_TABLE}` 等）：{e}",
+            ) from e
     finally:
         conn.close()
     total_cnt = sum(int(r.get("backorder_count") or 0) for r in rows)
@@ -219,11 +246,17 @@ def xinfadi_summary_series(
         WHERE `{dc}` >= %s AND `{dc}` <= %s
         ORDER BY `{dc}`
     """
-    conn = get_connection(cfg.host, cfg.port, cfg.database, cfg.user, cfg.password)
+    conn = _mysql_connect(cfg)
     try:
-        with conn.cursor() as cur:
-            cur.execute(sql, (start, end))
-            rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, (start, end))
+                rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
+        except pymysql.MySQLError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"业务库查询失败（MySQL 未就绪或缺表 `{tbl}` 等）：{e}",
+            ) from e
     finally:
         conn.close()
     return {

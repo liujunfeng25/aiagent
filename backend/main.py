@@ -9,13 +9,14 @@ try:
 except Exception:
     pass
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import TEST_IMAGES_DIR
 from app.database import init_db
-from app.routers import dashboard, datasources, datasets, training, models, analysis, system, recognition, categories, documents, insights_business
+from app.routers import dashboard, datasources, datasets, training, models, analysis, system, recognition, categories, documents, insights_business, logistics
 from app.xinfadi.routes import router as xinfadi_router
 
 app = FastAPI(title="AI Agent 平台", description="AI 训练与数据智能平台 API")
@@ -41,15 +42,42 @@ app.include_router(recognition.router, prefix="/api/recognition", tags=["recogni
 app.include_router(categories.router, prefix="/api/categories", tags=["categories"])
 app.include_router(documents.router, prefix="/api/doc", tags=["documents"])
 app.include_router(xinfadi_router)
+app.include_router(logistics.router, prefix="/api/logistics", tags=["logistics"])
 
 # 测试图片静态文件（vegetable-recognition 集成）
 if TEST_IMAGES_DIR.exists():
     app.mount("/api/recognition/test_images", StaticFiles(directory=str(TEST_IMAGES_DIR)), name="recognition_test_images")
 
-# 静态文件（生产环境挂载前端构建产物）
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok"}
+
+
+# 前端 SPA：Vite 产物在 frontend/dist；深链刷新须回退 index.html（html=True 仅对目录有效，不能直接解决 /logistics/...）
 frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
 if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+    _assets = frontend_dist / "assets"
+    if _assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_assets)), name="frontend_assets")
+
+    @app.get("/")
+    async def spa_index():
+        return FileResponse(frontend_dist / "index.html")
+
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str):
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        base = frontend_dist.resolve()
+        target = (base / full_path).resolve()
+        try:
+            target.relative_to(base)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Not Found")
+        if target.is_file():
+            return FileResponse(target)
+        return FileResponse(base / "index.html")
 
 
 @app.on_event("startup")
@@ -84,8 +112,3 @@ def startup():
             print(f"[startup] 按数据集去重模型，已删除 {n} 条多余记录")
     except Exception:
         pass
-
-
-@app.get("/api/health")
-def health():
-    return {"status": "ok"}

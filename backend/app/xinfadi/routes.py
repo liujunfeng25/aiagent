@@ -39,11 +39,17 @@ def default_date() -> str:
 
 
 def _embed_api_root(request: Request) -> str:
-    """iframe 内 fetch 的 API 根：必须用「本进程真正监听的地址」，不能用请求里的 Host。
+    """iframe 内 fetch 的 API 根：必须与浏览器地址栏同源（含主机名）。
 
-    经 Vite 代理时 Host 常为 localhost:5176，若据此拼出 http://localhost:5176/api/xinfadi，
-    浏览器会打到前端开发机而非 uvicorn，易出现 404/405。
+    若优先用 scope.server 把 0.0.0.0 落成 127.0.0.1，而用户打开的是 http://localhost:8000，
+    则 iframe 会请求 http://127.0.0.1:8000/api/...，与父页不同源，易出现 CORS/凭证或脚本表现异常。
+
+    经 Vite 代理时 Host 为 localhost:5173，据此拼出的 URL 仍走 /api 代理，符合预期。
     """
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "http").split(",")[0].strip()
+    host_hdr = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip()
+    if host_hdr:
+        return f"{proto}://{host_hdr}".rstrip("/")
     server = request.scope.get("server")
     if isinstance(server, (list, tuple)) and len(server) >= 2:
         host, port = str(server[0]), int(server[1])
@@ -53,10 +59,6 @@ def _embed_api_root(request: Request) -> str:
         if port in (80, 443):
             return f"{scheme}://{host}".rstrip("/")
         return f"{scheme}://{host}:{port}".rstrip("/")
-    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "http").split(",")[0].strip()
-    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip()
-    if host:
-        return f"{proto}://{host}".rstrip("/")
     return str(request.base_url).rstrip("/")
 
 
@@ -70,9 +72,9 @@ def price_page(request: Request):
     templates = Jinja2Templates(directory=str(templates_dir))
     api_xinfadi = f"{_embed_api_root(request)}/api/xinfadi"
     return templates.TemplateResponse(
+        request,
         "admin/price.html",
         {
-            "request": request,
             "default_date": default_date(),
             "api_xinfadi": api_xinfadi,
         },
