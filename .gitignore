@@ -10,10 +10,9 @@ build/
 .pytest_cache/
 .ruff_cache/
 
-# Envs（默认忽略；仅 backend/.env 允许提交，其它 .env.local 等仍忽略）
+# Envs
 .env
 .env.*
-!backend/.env
 # 本地配置副本（可选，与 config.py 同级变量名对齐）
 backend/config_副本.py
 venv/
