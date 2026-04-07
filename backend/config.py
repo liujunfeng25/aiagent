@@ -18,6 +18,42 @@ _pua_env2 = PROJECT_ROOT.parent / "puaojuchuli" / "backend" / ".env"
 if _pua_env2.is_file():
     load_dotenv(_pua_env2, override=False)
 load_dotenv(override=False)
+
+# 与 backend/.env 对齐的默认值：另一台机器未复制 .env 时仍可跑通物流/地图/摄像头等（系统环境变量与 .env 优先）
+_DEFAULT_ENV: dict[str, str] = {
+    "SXW_MYSQL_HOST": "1.92.102.228",
+    "SXW_MYSQL_PORT": "3306",
+    "SXW_MYSQL_USER": "edu_std_supp",
+    "SXW_MYSQL_PASSWORD": "THwnkTSQbcCCrsey",
+    "SXW_MYSQL_DATABASE": "edu_std_supp",
+    "SXW_MYSQL_SUPP_CODE": "10133",
+    "AMAP_JSAPI_KEY": "569a5415d46ab17dc766bdbd4035d55b",
+    "AMAP_SECURITY_JSCODE": "bf85102866042d3d6c0c00f3785bb765",
+    "GPS18_OPENAPI_BASE": "http://openapi.18gps.net",
+    "GPS18_LOGIN_NAME": "食迅易联",
+    "GPS18_LOGIN_PASSWORD": "123456",
+    "GPS18_MDS": "",
+    "GPS18_UNIT_ID": "",
+    "GPS18_HISTORY_MAP_TYPE": "BAIDU",
+    "GPS18_HISTORY_DEBUG": "1",
+    "IMOU_APP_ID": "lc8bd3fe83f0e9460b",
+    "IMOU_APP_SECRET": "36ab7437dabd488da728f4f2b527e4",
+    "IMOU_OPENAPI_BASE": "https://openapi.lechange.cn/openapi",
+    "YS7_APP_KEY": "29707e97f5554334a511c927198ad054",
+    "YS7_APP_SECRET": "a2d8d535eb850a3b90b0df3e51681b5c",
+    "YS7_OPENAPI_BASE": "https://open.ys7.com/api/lapp",
+}
+
+
+def _seed_env_defaults() -> None:
+    """仅当某键尚未出现在 os.environ 时写入默认值（不覆盖 .env / 系统环境）。"""
+    for key, value in _DEFAULT_ENV.items():
+        if key not in os.environ:
+            os.environ[key] = value
+
+
+_seed_env_defaults()
+
 DATA_DIR = PROJECT_ROOT / "data"
 DB_PATH = DATA_DIR / "ai_agent.db"
 DATASETS_DIR = DATA_DIR / "datasets"
