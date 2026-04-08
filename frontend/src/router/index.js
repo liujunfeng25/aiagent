@@ -1,6 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 const routes = [
+  {
+    path: '/cockpit',
+    name: 'DataCockpit',
+    component: () => import('../views/DataCockpit.vue'),
+    meta: { title: '数据驾驶舱', fullBleed: true },
+  },
   { path: '/', name: 'Dashboard', component: () => import('../views/Dashboard.vue'), meta: { title: '工作台' } },
   { path: '/datasources', name: 'DataSources', component: () => import('../views/DataSources.vue'), meta: { title: '数据源' } },
   { path: '/datasets', name: 'Datasets', component: () => import('../views/Datasets.vue'), meta: { title: '数据集' } },

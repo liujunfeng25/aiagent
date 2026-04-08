@@ -266,3 +266,96 @@ def xinfadi_summary_series(
         "series": rows,
         "note": "库内预聚合表 chart_xinfadi_price_summary，与爬虫明细口径可能不同",
     }
+
+
+@router.get("/goods-top")
+def goods_top(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    limit: int = Query(S.TOP_GOODS_DEFAULT, ge=1, le=S.TOP_GOODS_MAX),
+):
+    """单品排名：按商品名称分组，SUM 数量与金额，取 TOP N。"""
+    cfg = _cfg_or_503()
+    start, end = _parse_range(start_date, end_date)
+    t0, t1 = _day_start_ts(start), _day_end_ts(end)
+    ot = S.ORDERS_TIME_COL
+    gn = S.ORDER_GOODS_NAME_COL
+    gq = S.ORDER_GOODS_QTY_COL
+    ga = S.ORDER_GOODS_AMOUNT_COL
+    oid = S.ORDER_GOODS_ORDER_ID_COL
+    otbl = S.ORDERS_TABLE
+    gtbl = S.ORDER_GOODS_TABLE
+    sql = f"""
+        SELECT g.`{gn}` AS goods_name,
+               COALESCE(SUM(g.`{gq}`), 0) AS total_qty,
+               COALESCE(SUM(g.`{ga}` * g.`{gq}`), 0) AS total_amount
+        FROM `{gtbl}` g
+        JOIN `{otbl}` o ON g.`{oid}` = o.order_id
+        WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s
+        GROUP BY g.`{gn}`
+        ORDER BY total_amount DESC
+        LIMIT %s
+    """
+    conn = _mysql_connect(cfg)
+    try:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, (t0, t1, limit))
+                rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
+        except pymysql.MySQLError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"业务库查询失败（可能缺 `{gtbl}` 表）：{e}",
+            ) from e
+    finally:
+        conn.close()
+    return {
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "rows": rows,
+    }
+
+
+@router.get("/region-distribution")
+def region_distribution(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    limit: int = Query(S.TOP_REGIONS_DEFAULT, ge=1, le=S.TOP_REGIONS_MAX),
+):
+    """区域/客户分布：按客户名分组统计订单量与 GMV。"""
+    cfg = _cfg_or_503()
+    start, end = _parse_range(start_date, end_date)
+    t0, t1 = _day_start_ts(start), _day_end_ts(end)
+    ot = S.ORDERS_TIME_COL
+    mname = S.ORDERS_MEMBER_NAME_COL
+    ta = S.ORDERS_AMOUNT_COL
+    otbl = S.ORDERS_TABLE
+    sql = f"""
+        SELECT `{mname}` AS region_name,
+               COUNT(*) AS order_count,
+               COALESCE(SUM(`{ta}`), 0) AS gmv
+        FROM `{otbl}`
+        WHERE `{ot}` >= %s AND `{ot}` <= %s
+              AND `{mname}` IS NOT NULL AND `{mname}` != ''
+        GROUP BY `{mname}`
+        ORDER BY order_count DESC
+        LIMIT %s
+    """
+    conn = _mysql_connect(cfg)
+    try:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, (t0, t1, limit))
+                rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
+        except pymysql.MySQLError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"业务库查询失败：{e}",
+            ) from e
+    finally:
+        conn.close()
+    return {
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "rows": rows,
+    }

@@ -1,9 +1,14 @@
 <template>
   <el-config-provider :locale="zhCn">
     <el-container class="layout">
+      <TechParticleBg class="app-tech-bg" />
       <el-aside width="220px" class="sidebar">
         <div class="logo">AI Agent</div>
         <el-menu :default-active="$route.path" router>
+          <el-menu-item index="/cockpit" title="北京市冷链车辆与数据大屏（演示数据）">
+            <el-icon><Monitor /></el-icon>
+            <span>数据驾驶舱</span>
+          </el-menu-item>
           <el-menu-item index="/">
             <el-icon><Odometer /></el-icon>
             <span>工作台</span>
@@ -58,7 +63,7 @@
         <el-header class="header">
           <span class="title">AI 训练与数据智能平台</span>
         </el-header>
-        <el-main class="main">
+        <el-main :class="['main', { 'main--full-bleed': route.meta.fullBleed }]">
           <router-view />
         </el-main>
       </el-container>
@@ -67,20 +72,73 @@
 </template>
 
 <script setup>
+import { useRoute } from 'vue-router'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
-import { Odometer, Connection, Folder, Collection, VideoPlay, Box, PictureFilled, Document, DataAnalysis, TrendCharts, Setting, Van } from '@element-plus/icons-vue'
+import {
+  Monitor,
+  Odometer,
+  Connection,
+  Folder,
+  Collection,
+  VideoPlay,
+  Box,
+  PictureFilled,
+  Document,
+  DataAnalysis,
+  TrendCharts,
+  Setting,
+  Van,
+} from '@element-plus/icons-vue'
+import TechParticleBg from './components/cockpit/TechParticleBg.vue'
+
+const route = useRoute()
 </script>
 
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body, #app { height: 100%; }
-.layout { height: 100%; }
+.layout {
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+.app-tech-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.95;
+  mix-blend-mode: screen;
+}
+.layout > .el-container,
+.layout > .el-aside {
+  position: relative;
+  z-index: 1;
+}
 .sidebar { background: #001529; }
 .logo { padding: 16px; color: #fff; font-size: 18px; font-weight: bold; }
 .el-menu { border: none; background: transparent; }
 .el-menu-item { color: rgba(255,255,255,0.85); }
 .el-menu-item:hover, .el-menu-item.is-active { color: #fff; background: rgba(255,255,255,0.1); }
-.header { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.1); display: flex; align-items: center; padding: 0 24px; }
+.header {
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 1px 4px rgba(0,0,0,.1);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+}
 .title { font-size: 16px; font-weight: 500; }
-.main { background: #f0f2f5; padding: 24px; min-height: calc(100vh - 60px); }
+.main {
+  background:
+    radial-gradient(ellipse 120% 90% at 50% -25%, rgba(30, 144, 255, 0.05), transparent 50%),
+    rgba(10, 22, 42, 0.03);
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+}
+.main--full-bleed {
+  padding: 0 !important;
+  background: transparent !important;
+  min-height: calc(100vh - 60px);
+}
 </style>

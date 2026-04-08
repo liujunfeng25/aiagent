@@ -29,12 +29,12 @@ services:
       - agent-data:/app/backend/data
     environment:
       - PYTHONUNBUFFERED=1
-      # 容器内访问 compose 中的 MySQL 服务（宿主机 Navicat 仍用 127.0.0.1:3307）
-      - INSIGHTS_MYSQL_HOST=mysql
+      # 数据洞察改为线上 MySQL
+      - INSIGHTS_MYSQL_HOST=39.97.252.121
       - INSIGHTS_MYSQL_PORT=3306
-      - INSIGHTS_MYSQL_USER=root
-      - INSIGHTS_MYSQL_PASSWORD=116165
-      - INSIGHTS_MYSQL_DATABASE=agent
+      - INSIGHTS_MYSQL_USER=script-wechat
+      - INSIGHTS_MYSQL_PASSWORD=ShiXunCn.2015!)
+      - INSIGHTS_MYSQL_DATABASE=shixunwang
       # SXW 业务数据库（物流模块数据源）
       - SXW_MYSQL_HOST=1.92.102.228
       - SXW_MYSQL_PORT=3306
