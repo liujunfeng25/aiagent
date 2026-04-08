@@ -1,4 +1,6 @@
 # 与 docker MySQL agent 库 DESCRIBE 结果对齐（orders / backorder / chart_xinfadi_price_summary）
+# 库内全部表枚举：GET /api/insights/business/meta/tables
+# 说明文档：同目录 data_catalog.md
 
 ORDERS_TABLE = "orders"
 ORDERS_TIME_COL = "add_time"  # int unsigned UNIX 时间戳
@@ -20,12 +22,7 @@ DEFAULT_RANGE_DAYS = 30
 TOP_MEMBERS_MAX = 50
 TOP_MEMBERS_DEFAULT = 10
 
-# 驾驶舱大屏：单品排名 & 区域分布
-ORDER_GOODS_TABLE = "order_goods"
-ORDER_GOODS_NAME_COL = "goods_name"
-ORDER_GOODS_QTY_COL = "goods_num"
-ORDER_GOODS_AMOUNT_COL = "goods_price"
-ORDER_GOODS_ORDER_ID_COL = "order_id"
+# 单品排名：表/字段不写死。运行时见 order_items_resolver（优先 orders_items；本地样例库若有 order_goods 会在候选表中被匹配）
 
 TOP_GOODS_MAX = 20
 TOP_GOODS_DEFAULT = 10

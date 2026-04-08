@@ -1,7 +1,7 @@
 <template>
   <div class="cockpit-root">
-    <!-- Tab: Default (智能驾驶舱) -->
-    <div v-if="activeTab === 'default'" class="cockpit-shell">
+    <!-- Tab 1: 智能驾驶舱（3D 地图 + 业务数据） -->
+    <div v-if="activeTab === 'smart'" class="cockpit-shell">
       <div class="cockpit-shell__bg" aria-hidden="true" />
       <div class="cockpit-shell__scan" aria-hidden="true" />
 
@@ -12,7 +12,7 @@
         <div class="cockpit-top__center">
           <div class="cockpit-top__title-line" />
           <h1 class="cockpit-top__title">智能驾驶舱</h1>
-          <p class="cockpit-top__sub">数据可视化大屏（演示数据）</p>
+          <p class="cockpit-top__sub">2D 态势地图演示点位为模拟数据 · 其余图表来自业务库</p>
           <div class="cockpit-top__title-line cockpit-top__title-line--short" />
         </div>
         <div class="cockpit-top__side cockpit-top__side--right">
@@ -23,15 +23,23 @@
         </div>
       </header>
 
-      <div v-if="loadError" class="cockpit-shell__err">{{ loadError }}</div>
+      <div v-if="loadErrorOps" class="cockpit-shell__err">
+        {{ loadErrorOps }}
+        <el-button type="primary" size="small" class="cockpit-retry" @click="loadOpsData">重试</el-button>
+      </div>
 
-      <div class="cockpit-grid">
+      <div class="cockpit-grid cockpit-grid--smart">
         <div class="cockpit-grid__cell cockpit-grid__cell--r1c1">
           <PanelRegion :data="regionData" />
         </div>
         <div class="cockpit-grid__cell cockpit-grid__cell--map">
           <CockpitPanel title="车辆分布" title-en="VEHICLE LOCATION">
-            <BeijingMap3D :vehicles="vehicles" :drill-adcode="drillAdcode" theme="blue" @drill="onMapDrill" />
+            <CockpitBeijingMap
+              :vehicles="mapVehicles"
+              :drill-adcode="drillAdcode"
+              @drill="onMapDrill"
+              @back="onBackCity"
+            />
           </CockpitPanel>
         </div>
         <div class="cockpit-grid__cell cockpit-grid__cell--r1c3">
@@ -44,33 +52,79 @@
           <PanelGoodsPie :data="goodsData" />
         </div>
         <div class="cockpit-grid__cell cockpit-grid__cell--r3c1">
-          <PanelKpi :data="kpiData" />
+          <PanelKpi :data="kpiLegacy" />
         </div>
         <div class="cockpit-grid__cell cockpit-grid__cell--r3c2">
           <PanelTrendLine :data="orderTrendData" />
         </div>
         <div class="cockpit-grid__cell cockpit-grid__cell--r3c3">
-          <PanelGrowth :kpi="kpiData" />
+          <PanelGrowth :kpi="kpiLegacy" />
         </div>
       </div>
     </div>
 
-    <!-- Tab: Blue (经济数据大屏) -->
-    <CockpitViewBlue
-      v-else-if="activeTab === 'blue'"
-      :vehicles="vehicles"
-      :order-trend-data="orderTrendData"
-      :order-rank-data="orderRankData"
-      :goods-data="goodsData"
-      :region-data="regionData"
-      :kpi-data="kpiData"
-      :clock-text="clockText"
-      :drill-adcode="drillAdcode"
-      :load-error="loadError"
-      @drill="onMapDrill"
-    />
+    <!-- Tab 2: 运营指挥台（无地图，成交节奏条带 + 真实 KPI） -->
+    <div v-else-if="activeTab === 'ops'" class="cockpit-shell">
+      <div class="cockpit-shell__bg" aria-hidden="true" />
+      <div class="cockpit-shell__scan" aria-hidden="true" />
 
-    <!-- Tab: IoT (物联监控大屏) -->
+      <header class="cockpit-top">
+        <div class="cockpit-top__side cockpit-top__side--left">
+          <span class="cockpit-top__tag">AI · OPS · PULSE</span>
+        </div>
+        <div class="cockpit-top__center">
+          <div class="cockpit-top__title-line" />
+          <h1 class="cockpit-top__title">运营指挥台</h1>
+          <p class="cockpit-top__sub">{{ opsSubtitle }}</p>
+          <div class="cockpit-top__title-line cockpit-top__title-line--short" />
+        </div>
+        <div class="cockpit-top__side cockpit-top__side--right">
+          <div class="cockpit-top__clock-wrap">
+            <span class="cockpit-top__clock">{{ clockText }}</span>
+            <span class="cockpit-top__clock-label">LOCAL</span>
+          </div>
+        </div>
+      </header>
+
+      <div v-if="loadErrorOps" class="cockpit-shell__err">
+        {{ loadErrorOps }}
+        <el-button type="primary" size="small" class="cockpit-retry" @click="loadOpsData">重试</el-button>
+      </div>
+
+      <div class="cockpit-grid cockpit-grid--ops">
+        <div class="cockpit-grid__cell cockpit-grid__cell--r1c1">
+          <PanelRegion :data="regionData" />
+        </div>
+        <div class="cockpit-grid__cell cockpit-grid__cell--r1c2">
+          <PanelOrderTrend :data="orderTrendData" />
+        </div>
+        <div class="cockpit-grid__cell cockpit-grid__cell--r1c3">
+          <PanelOrderRank :data="orderRankData" />
+        </div>
+        <div class="cockpit-grid__cell cockpit-grid__cell--r2wide">
+          <PanelWeekdayProfile :data="orderTrendData" />
+        </div>
+        <div class="cockpit-grid__cell cockpit-grid__cell--r2side">
+          <PanelGoodsPie :data="goodsData" />
+        </div>
+        <div class="cockpit-grid__cell cockpit-grid__cell--r3trend">
+          <PanelTrendLine :data="orderTrendData" />
+        </div>
+        <div class="cockpit-grid__cell cockpit-grid__cell--r3kpi">
+          <PanelKpiReal :summary-range="kpiRange" :summary-today="kpiToday" />
+        </div>
+      </div>
+    </div>
+
+    <el-button
+      v-if="drillAdcode && activeTab === 'smart'"
+      type="primary"
+      class="cockpit-float-back"
+      @click="onBackCity"
+    >
+      返回全市
+    </el-button>
+
     <CockpitViewIoT
       v-else-if="activeTab === 'iot'"
       :device-status="iotDeviceStatus"
@@ -79,29 +133,19 @@
       :device-bindings="iotDeviceBindings"
       :temp-humidity="iotTempHumidity"
       :temp-threshold="TEMP_THRESHOLD"
-      :vehicles="vehicles"
+      :vehicles="iotVehicles"
       :warehouses="iotWarehouses"
       :clock-text="clockText"
-      :load-error="loadError"
+      :load-error="''"
     />
 
-    <el-button
-      v-if="drillAdcode"
-      type="primary"
-      class="cockpit-float-back"
-      @click="onBackCity"
-    >
-      返回总览
-    </el-button>
-
-    <!-- Bottom Tab Bar -->
     <nav class="cockpit-tab-bar">
       <div class="cockpit-tab-bar__inner">
         <button
           v-for="tab in tabs"
           :key="tab.key"
           :class="['cockpit-tab-bar__item', { 'cockpit-tab-bar__item--active': activeTab === tab.key }]"
-          @click="activeTab = tab.key"
+          @click="onTabClick(tab.key)"
         >
           <span class="cockpit-tab-bar__icon">{{ tab.icon }}</span>
           <span class="cockpit-tab-bar__label">{{ tab.label }}</span>
@@ -112,27 +156,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import CockpitPanel from '../components/cockpit/CockpitPanel.vue'
-import BeijingMap3D from '../components/cockpit/BeijingMap3D.vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import PanelRegion from '../components/cockpit/PanelRegion.vue'
 import PanelOrderRank from '../components/cockpit/PanelOrderRank.vue'
 import PanelOrderTrend from '../components/cockpit/PanelOrderTrend.vue'
 import PanelGoodsPie from '../components/cockpit/PanelGoodsPie.vue'
-import PanelKpi from '../components/cockpit/PanelKpi.vue'
 import PanelTrendLine from '../components/cockpit/PanelTrendLine.vue'
+import PanelWeekdayProfile from '../components/cockpit/PanelWeekdayProfile.vue'
+import PanelKpiReal from '../components/cockpit/PanelKpiReal.vue'
+import PanelKpi from '../components/cockpit/PanelKpi.vue'
 import PanelGrowth from '../components/cockpit/PanelGrowth.vue'
-import CockpitViewBlue from '../components/cockpit/CockpitViewBlue.vue'
+import CockpitPanel from '../components/cockpit/CockpitPanel.vue'
+import CockpitBeijingMap from '../components/cockpit/CockpitBeijingMap.vue'
 import CockpitViewIoT from '../components/cockpit/CockpitViewIoT.vue'
 import { generateMockVehiclesInBeijing } from '../mock/cockpitVehicles.js'
-import {
-  mockOrdersDailySeries,
-  mockOrdersTopMembers,
-  mockGoodsTop,
-  mockRegionDistribution,
-  mockKpi,
-} from '../mock/cockpitDashboard.js'
 import {
   mockDeviceStatus,
   mockAllCameras,
@@ -143,26 +180,31 @@ import {
   TEMP_THRESHOLD,
 } from '../mock/cockpitIoT.js'
 
-const GEO_URL = '/geo/beijing_110000_full.json'
 const API_BASE = '/api/insights/business'
+const GEO_URL = '/geo/beijing_110000_full.json'
 
-const activeTab = ref('default')
+/** 默认运营台：无地图首屏，较智能驾驶舱更轻；物联 tab 含高德外链，一般最慢 */
+const activeTab = ref('ops')
 const tabs = [
-  { key: 'default', label: '智能驾驶舱', icon: '◈' },
-  { key: 'blue', label: '经济数据大屏', icon: '◉' },
+  { key: 'ops', label: '运营指挥台', icon: '◉' },
+  { key: 'smart', label: '智能驾驶舱', icon: '◈' },
   { key: 'iot', label: '物联监控大屏', icon: '◎' },
 ]
 
-const loadError = ref('')
-const drillAdcode = ref('')
-const clockText = ref('')
+const loadErrorOps = ref('')
 
-const vehicles = ref([])
+const clockText = ref('')
 const orderTrendData = ref([])
 const orderRankData = ref([])
 const goodsData = ref([])
 const regionData = ref([])
-const kpiData = ref({})
+const kpiRange = ref(null)
+const kpiToday = ref(null)
+/** 智能驾驶舱 PanelKpi / PanelGrowth 用（今日 KPI + 演示性辅指标） */
+const kpiLegacy = ref({})
+const mapVehicles = ref([])
+const drillAdcode = ref('')
+const iotVehicles = ref([])
 
 const iotDeviceStatus = ref({})
 const iotAllCameras = ref([])
@@ -170,6 +212,31 @@ const iotCameraList = ref([])
 const iotDeviceBindings = ref([])
 const iotTempHumidity = ref([])
 const iotWarehouses = ref([])
+
+/** 仅在需要地图/物联车辆时拉 GeoJSON，避免默认运营台也解析 ~100KB+ 区界 */
+let geoJsonCache = null
+async function ensureGeoAndVehicles() {
+  if (mapVehicles.value.length && iotVehicles.value.length) return
+  if (!geoJsonCache) {
+    try {
+      const r = await fetch(GEO_URL)
+      if (r.ok) geoJsonCache = await r.json()
+    } catch {
+      geoJsonCache = null
+    }
+  }
+  if (!geoJsonCache) return
+  if (!mapVehicles.value.length) {
+    mapVehicles.value = generateMockVehiclesInBeijing(52, geoJsonCache)
+  }
+  if (!iotVehicles.value.length) {
+    iotVehicles.value = generateMockVehiclesInBeijing(28, geoJsonCache)
+  }
+}
+
+watch(activeTab, (k) => {
+  if (k === 'smart' || k === 'iot') void ensureGeoAndVehicles()
+})
 
 let clockTimer = null
 
@@ -180,13 +247,24 @@ function tickClock() {
   clockText.value = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
 }
 
-async function fetchOrMock(url) {
-  try {
-    const res = await fetch(url)
-    if (!res.ok) throw new Error(res.statusText)
-    return await res.json()
-  } catch {
-    return null
+const opsSubtitle = computed(() => {
+  const r = kpiRange.value
+  if (r?.start_date && r?.end_date) {
+    return `订单与客户数据来自业务库 · 统计区间 ${r.start_date} ~ ${r.end_date}`
+  }
+  return '订单与客户数据来自业务库 · 加载成功后显示统计区间'
+})
+
+function syncKpiLegacy(kr, kt) {
+  const t = kt?.ok ? kt.data : null
+  const r = kr?.ok ? kr.data : null
+  kpiLegacy.value = {
+    todayOrders: t?.order_count ?? r?.order_count ?? '--',
+    todayGmv: t?.gmv ?? r?.gmv ?? '--',
+    avgOrderAmount: t?.avg_ticket ?? r?.avg_ticket ?? '--',
+    deliveryRate: 96.5,
+    returnRate: 1.8,
+    newCustomers: 12,
   }
 }
 
@@ -200,53 +278,85 @@ function onBackCity() {
   drillAdcode.value = ''
 }
 
-onMounted(async () => {
-  tickClock()
-  clockTimer = setInterval(tickClock, 1000)
+async function fetchJson(url) {
+  const res = await fetch(url)
+  const text = await res.text()
+  let body
+  try {
+    body = JSON.parse(text)
+  } catch {
+    body = null
+  }
+  if (!res.ok) {
+    const detail = body?.detail
+    const msg = typeof detail === 'string'
+      ? detail
+      : (Array.isArray(detail) ? detail.map((x) => x.msg || x).join('; ') : text || res.statusText)
+    throw new Error(msg || `HTTP ${res.status}`)
+  }
+  return body
+}
 
-  const [geoRes, ordersRes, membersRes, goodsRes, regionRes] = await Promise.allSettled([
-    fetch(GEO_URL).then((r) => r.json()),
-    fetchOrMock(`${API_BASE}/orders-daily`),
-    fetchOrMock(`${API_BASE}/orders-top-members`),
-    fetchOrMock(`${API_BASE}/goods-top`),
-    fetchOrMock(`${API_BASE}/region-distribution`),
+async function safeFetchJson(url) {
+  try {
+    return { ok: true, data: await fetchJson(url) }
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) }
+  }
+}
+
+async function loadOpsData() {
+  loadErrorOps.value = ''
+  const [daily, members, goods, region, kr, kt] = await Promise.all([
+    safeFetchJson(`${API_BASE}/orders-daily`),
+    safeFetchJson(`${API_BASE}/orders-top-members`),
+    safeFetchJson(`${API_BASE}/goods-top`),
+    safeFetchJson(`${API_BASE}/region-distribution`),
+    safeFetchJson(`${API_BASE}/kpi-summary?scope=range`),
+    safeFetchJson(`${API_BASE}/kpi-summary?scope=today`),
   ])
 
-  if (geoRes.status === 'fulfilled' && geoRes.value) {
-    vehicles.value = generateMockVehiclesInBeijing(36, geoRes.value)
+  orderTrendData.value = daily.ok && Array.isArray(daily.data?.series) ? daily.data.series : []
+  orderRankData.value = members.ok && Array.isArray(members.data?.rows) ? members.data.rows : []
+  goodsData.value = goods.ok && Array.isArray(goods.data?.rows) ? goods.data.rows : []
+  regionData.value = region.ok && Array.isArray(region.data?.rows) ? region.data.rows : []
+  kpiRange.value = kr.ok && kr.data?.scope === 'range' ? kr.data : null
+  kpiToday.value = kt.ok && kt.data?.scope === 'today' ? kt.data : null
+
+  const errParts = []
+  if (!daily.ok) errParts.push(`订单趋势：${daily.error}`)
+  if (!members.ok) errParts.push(`会员排名：${members.error}`)
+  if (!goods.ok) errParts.push(`单品分布：${goods.error}`)
+  else if (goods.data?.warning) errParts.push(`单品：${goods.data.warning}`)
+  if (!region.ok) errParts.push(`区域分布：${region.error}`)
+  if (!kr.ok) errParts.push(`区间 KPI：${kr.error}`)
+  if (!kt.ok) errParts.push(`今日 KPI：${kt.error}`)
+  loadErrorOps.value = errParts.join(' ')
+  syncKpiLegacy(kr, kt)
+}
+
+function onTabClick(key) {
+  activeTab.value = key
+  if ((key === 'ops' || key === 'smart') && loadErrorOps.value) {
+    loadOpsData()
   }
+}
 
-  const ordersVal = ordersRes.status === 'fulfilled' ? ordersRes.value : null
-  orderTrendData.value = ordersVal?.series?.length ? ordersVal.series : mockOrdersDailySeries()
-
-  const membersVal = membersRes.status === 'fulfilled' ? membersRes.value : null
-  orderRankData.value = membersVal?.rows?.length ? membersVal.rows : mockOrdersTopMembers()
-
-  const goodsVal = goodsRes.status === 'fulfilled' ? goodsRes.value : null
-  goodsData.value = goodsVal?.rows?.length ? goodsVal.rows : mockGoodsTop()
-
-  const regionVal = regionRes.status === 'fulfilled' ? regionRes.value : null
-  regionData.value = regionVal?.rows?.length ? regionVal.rows : mockRegionDistribution()
-
-  if (ordersVal?.summary) {
-    kpiData.value = {
-      todayOrders: ordersVal.summary.order_count,
-      todayGmv: ordersVal.summary.gmv,
-      avgOrderAmount: ordersVal.summary.order_count ? +(ordersVal.summary.gmv / ordersVal.summary.order_count).toFixed(2) : 0,
-      deliveryRate: 96.5,
-      returnRate: 1.8,
-      newCustomers: 12,
-    }
-  } else {
-    kpiData.value = mockKpi()
-  }
-
+function initIotMock() {
   iotDeviceStatus.value = mockDeviceStatus()
   iotAllCameras.value = mockAllCameras()
   iotCameraList.value = mockCameraList()
   iotDeviceBindings.value = mockDeviceBindings()
   iotTempHumidity.value = mockTempHumidity24h()
   iotWarehouses.value = mockWarehouses()
+}
+
+onMounted(() => {
+  tickClock()
+  clockTimer = setInterval(tickClock, 1000)
+  initIotMock()
+  /* 不 await：首屏先渲染，图表随接口返回逐项铺满，避免整页「卡死」感 */
+  void loadOpsData()
 })
 
 onUnmounted(() => {
@@ -264,7 +374,6 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* ── Default Shell ── */
 .cockpit-shell {
   position: relative;
   display: flex;
@@ -390,16 +499,13 @@ onUnmounted(() => {
   color: rgba(234, 179, 8, 0.7);
 }
 
-.cockpit-top__back {
-  flex-shrink: 0;
-  background: linear-gradient(180deg, rgba(234, 179, 8, 0.2), rgba(34, 211, 238, 0.25)) !important;
-  border: 1px solid rgba(234, 179, 8, 0.4) !important;
-  color: #ecfeff !important;
-}
-
 .cockpit-shell__err {
   position: relative;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
   padding: 8px 12px;
   margin-bottom: 6px;
   border-radius: 6px;
@@ -409,15 +515,25 @@ onUnmounted(() => {
   font-size: 13px;
 }
 
+.cockpit-retry { flex-shrink: 0; }
+
 .cockpit-grid {
   position: relative;
   z-index: 2;
   flex: 1;
   min-height: 0;
   display: grid;
+  gap: 8px;
+}
+
+.cockpit-grid--smart {
   grid-template-columns: 1fr 1.4fr 1fr;
   grid-template-rows: 1fr 1fr 0.85fr;
-  gap: 8px;
+}
+
+.cockpit-grid--ops {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 0.88fr;
 }
 
 .cockpit-grid__cell {
@@ -430,23 +546,18 @@ onUnmounted(() => {
 .cockpit-grid__cell > * { flex: 1; min-height: 0; }
 
 .cockpit-grid__cell--r1c1 { grid-column: 1; grid-row: 1; }
-.cockpit-grid__cell--map  { grid-column: 2; grid-row: 1 / 3; }
+.cockpit-grid__cell--r1c2 { grid-column: 2; grid-row: 1; }
 .cockpit-grid__cell--r1c3 { grid-column: 3; grid-row: 1; }
+.cockpit-grid__cell--map { grid-column: 2; grid-row: 1 / 3; }
 .cockpit-grid__cell--r2c1 { grid-column: 1; grid-row: 2; }
 .cockpit-grid__cell--r2c3 { grid-column: 3; grid-row: 2; }
+.cockpit-grid__cell--r2wide { grid-column: 1 / 3; grid-row: 2; }
+.cockpit-grid__cell--r2side { grid-column: 3; grid-row: 2; }
 .cockpit-grid__cell--r3c1 { grid-column: 1; grid-row: 3; }
 .cockpit-grid__cell--r3c2 { grid-column: 2; grid-row: 3; }
 .cockpit-grid__cell--r3c3 { grid-column: 3; grid-row: 3; }
-
-/* ── Bottom Tab Bar ── */
-.cockpit-tab-bar {
-  position: relative;
-  z-index: 10;
-  flex-shrink: 0;
-  padding: 0 12px;
-  background: linear-gradient(180deg, rgba(5, 10, 25, 0.6) 0%, rgba(5, 10, 25, 0.95) 100%);
-  border-top: 1px solid rgba(30, 144, 255, 0.2);
-}
+.cockpit-grid__cell--r3trend { grid-column: 1; grid-row: 3; }
+.cockpit-grid__cell--r3kpi { grid-column: 2 / 4; grid-row: 3; }
 
 .cockpit-float-back {
   position: absolute;
@@ -459,11 +570,20 @@ onUnmounted(() => {
   box-shadow: 0 0 12px rgba(30, 144, 255, 0.35);
 }
 
+.cockpit-tab-bar {
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+  padding: 0 12px;
+  background: linear-gradient(180deg, rgba(5, 10, 25, 0.6) 0%, rgba(5, 10, 25, 0.95) 100%);
+  border-top: 1px solid rgba(30, 144, 255, 0.2);
+}
+
 .cockpit-tab-bar__inner {
   display: flex;
   justify-content: center;
   gap: 4px;
-  max-width: 500px;
+  max-width: 640px;
   margin: 0 auto;
 }
 
@@ -471,7 +591,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 24px;
+  padding: 8px 16px;
   border: none;
   background: transparent;
   color: rgba(140, 170, 220, 0.7);
@@ -496,8 +616,8 @@ onUnmounted(() => {
   content: '';
   position: absolute;
   bottom: -1px;
-  left: 20%;
-  right: 20%;
+  left: 15%;
+  right: 15%;
   height: 2px;
   background: #1e90ff;
   box-shadow: 0 0 10px rgba(30, 144, 255, 0.6), 0 0 20px rgba(30, 144, 255, 0.3);
@@ -514,18 +634,28 @@ onUnmounted(() => {
 }
 
 @media (max-width: 900px) {
-  .cockpit-grid {
+  .cockpit-grid--smart,
+  .cockpit-grid--ops {
     grid-template-columns: 1fr;
     grid-template-rows: auto;
   }
-  .cockpit-grid__cell--map { grid-column: 1; grid-row: auto; min-height: 360px; }
+  .cockpit-grid__cell--map {
+    grid-column: 1;
+    grid-row: auto;
+    min-height: 360px;
+  }
   .cockpit-grid__cell--r1c1,
+  .cockpit-grid__cell--r1c2,
   .cockpit-grid__cell--r1c3,
   .cockpit-grid__cell--r2c1,
   .cockpit-grid__cell--r2c3,
+  .cockpit-grid__cell--r2wide,
+  .cockpit-grid__cell--r2side,
   .cockpit-grid__cell--r3c1,
   .cockpit-grid__cell--r3c2,
-  .cockpit-grid__cell--r3c3 {
+  .cockpit-grid__cell--r3c3,
+  .cockpit-grid__cell--r3trend,
+  .cockpit-grid__cell--r3kpi {
     grid-column: 1;
     grid-row: auto;
     min-height: 200px;

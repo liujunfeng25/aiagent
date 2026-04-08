@@ -9,53 +9,53 @@
       </div>
       <div class="blue-top__center">
         <div class="blue-top__title-line" />
-        <h1 class="blue-top__title">经济数据可视化驾驶舱大屏</h1>
+        <h1 class="blue-top__title">批发价格 · 供需风险</h1>
+        <p v-if="rangeHint" class="blue-top__sub">{{ rangeHint }}</p>
         <div class="blue-top__title-line blue-top__title-line--short" />
       </div>
       <div class="blue-top__side blue-top__side--right">
-        <span class="blue-top__tag-right">VISUALIZATION</span>
+        <span class="blue-top__tag-right">AI PRICE RADAR</span>
       </div>
     </header>
 
-    <!-- KPI Summary Bar -->
     <div class="blue-kpi-bar">
-      <div v-for="item in kpiBarItems" :key="item.key" class="blue-kpi-bar__item">
-        <span class="blue-kpi-bar__label">{{ item.label }}</span>
-        <span class="blue-kpi-bar__value">{{ item.value }}</span>
+      <div class="blue-kpi-bar__item">
+        <span class="blue-kpi-bar__label">区间背单笔数</span>
+        <span class="blue-kpi-bar__value">{{ riskKpis.backCnt }}</span>
+      </div>
+      <div class="blue-kpi-bar__item">
+        <span class="blue-kpi-bar__label">区间背单金额</span>
+        <span class="blue-kpi-bar__value">{{ riskKpis.backAmtFmt }}</span>
+      </div>
+      <div class="blue-kpi-bar__item">
+        <span class="blue-kpi-bar__label">最新日均批发价</span>
+        <span class="blue-kpi-bar__value">{{ riskKpis.lastAvg }}</span>
       </div>
     </div>
 
-    <div v-if="loadError" class="blue-shell__err">{{ loadError }}</div>
+    <div v-if="loadError" class="blue-shell__err">
+      {{ loadError }}
+      <el-button type="primary" size="small" class="blue-retry" @click="emit('retry')">重试</el-button>
+    </div>
 
-    <!-- 3x3 Grid -->
     <div class="blue-grid">
-      <div class="blue-grid__cell blue-grid__cell--r1c1">
-        <PanelDonutBlue :data="goodsData" :kpi="kpiData" />
+      <div class="blue-grid__cell blue-grid__cell--r1">
+        <PanelXinfadiBand :data="xinfadiSeries" />
       </div>
-      <div class="blue-grid__cell blue-grid__cell--map">
-        <CockpitPanelBlue title="北京市区域分布" title-en="BEIJING REGION MAP">
-          <BeijingMap3D :vehicles="vehicles" :drill-adcode="drillAdcode" theme="blue" @drill="$emit('drill', $event)" />
-        </CockpitPanelBlue>
+      <div class="blue-grid__cell blue-grid__cell--r2a">
+        <PanelBackorderBar :data="backorderSeries" />
       </div>
-      <div class="blue-grid__cell blue-grid__cell--r1c3">
-        <PanelRingGauge :data="kpiData" />
+      <div class="blue-grid__cell blue-grid__cell--r2b">
+        <PanelPriceVsBackorder
+          :xinfadi-series="xinfadiSeries"
+          :backorder-series="backorderSeries"
+        />
       </div>
-
-      <div class="blue-grid__cell blue-grid__cell--r2c1">
-        <PanelRegionBlue :data="regionData" />
+      <div class="blue-grid__cell blue-grid__cell--r3a">
+        <PanelBackorderHeatmap :data="backorderSeries" />
       </div>
-      <div class="blue-grid__cell blue-grid__cell--r2c3">
-        <PanelTrendLineBlue :data="orderTrendData" />
-      </div>
-
-      <div class="blue-grid__cell blue-grid__cell--r3c1">
-        <PanelOrderTrendBlue :data="orderTrendData" />
-      </div>
-      <div class="blue-grid__cell blue-grid__cell--r3c2">
-        <PanelKpiBlue :data="kpiData" />
-      </div>
-      <div class="blue-grid__cell blue-grid__cell--r3c3">
-        <PanelLineBlue :data="orderTrendData" />
+      <div class="blue-grid__cell blue-grid__cell--r3b">
+        <PanelPriceSpreadHeatmap :data="xinfadiSeries" />
       </div>
     </div>
   </div>
@@ -63,37 +63,40 @@
 
 <script setup>
 import { computed } from 'vue'
-import CockpitPanelBlue from './CockpitPanelBlue.vue'
-import BeijingMap3D from './BeijingMap3D.vue'
-import PanelDonutBlue from './PanelDonutBlue.vue'
-import PanelRingGauge from './PanelRingGauge.vue'
-import PanelRegionBlue from './PanelRegionBlue.vue'
-import PanelOrderTrendBlue from './PanelOrderTrendBlue.vue'
-import PanelTrendLineBlue from './PanelTrendLineBlue.vue'
-import PanelLineBlue from './PanelLineBlue.vue'
-import PanelKpiBlue from './PanelKpiBlue.vue'
+import PanelXinfadiBand from './PanelXinfadiBand.vue'
+import PanelBackorderBar from './PanelBackorderBar.vue'
+import PanelPriceVsBackorder from './PanelPriceVsBackorder.vue'
+import PanelBackorderHeatmap from './PanelBackorderHeatmap.vue'
+import PanelPriceSpreadHeatmap from './PanelPriceSpreadHeatmap.vue'
 
 const props = defineProps({
-  vehicles: { type: Array, default: () => [] },
-  orderTrendData: { type: Array, default: () => [] },
-  orderRankData: { type: Array, default: () => [] },
-  goodsData: { type: Array, default: () => [] },
-  regionData: { type: Array, default: () => [] },
-  kpiData: { type: Object, default: () => ({}) },
-  clockText: { type: String, default: '' },
-  drillAdcode: { type: String, default: '' },
+  xinfadiSeries: { type: Array, default: () => [] },
+  backorderSeries: { type: Array, default: () => [] },
   loadError: { type: String, default: '' },
+  clockText: { type: String, default: '' },
+  rangeHint: { type: String, default: '' },
 })
 
-defineEmits(['drill'])
+const emit = defineEmits(['retry'])
 
-const kpiBarItems = computed(() => {
-  const d = props.kpiData
-  return [
-    { key: 'orders', label: '今日订单总量', value: d.todayOrders ?? '--' },
-    { key: 'gmv', label: '今日 GMV', value: d.todayGmv ? `¥${Number(d.todayGmv).toLocaleString()}` : '--' },
-    { key: 'customers', label: '注册客户数', value: d.newCustomers ? `${d.newCustomers}+` : '--' },
-  ]
+const riskKpis = computed(() => {
+  const bo = props.backorderSeries || []
+  let cnt = 0
+  let amt = 0
+  for (const r of bo) {
+    cnt += Number(r.backorder_count || 0)
+    amt += Number(r.amount_sum || 0)
+  }
+  const xf = props.xinfadiSeries || []
+  const last = xf.length ? xf[xf.length - 1] : null
+  const la = last != null && last.avg_price != null
+    ? Number(last.avg_price).toFixed(2)
+    : '--'
+  return {
+    backCnt: cnt,
+    backAmtFmt: amt > 0 ? `¥${Number(amt).toLocaleString()}` : '¥0',
+    lastAvg: la === '--' ? '--' : `¥${la}`,
+  }
 })
 </script>
 
@@ -148,7 +151,6 @@ const kpiBarItems = computed(() => {
   100% { background-position: 0% 100%; }
 }
 
-/* Header */
 .blue-top {
   position: relative;
   z-index: 2;
@@ -198,7 +200,13 @@ const kpiBarItems = computed(() => {
   line-height: 1.2;
 }
 
-/* KPI Bar */
+.blue-top__sub {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.85);
+  letter-spacing: 0.04em;
+}
+
 .blue-kpi-bar {
   position: relative;
   z-index: 2;
@@ -207,6 +215,7 @@ const kpiBarItems = computed(() => {
   gap: 40px;
   padding: 6px 0 8px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .blue-kpi-bar__item {
@@ -231,6 +240,10 @@ const kpiBarItems = computed(() => {
 .blue-shell__err {
   position: relative;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
   padding: 8px 12px;
   margin-bottom: 6px;
   border-radius: 6px;
@@ -240,15 +253,16 @@ const kpiBarItems = computed(() => {
   font-size: 13px;
 }
 
-/* Grid */
+.blue-retry { flex-shrink: 0; }
+
 .blue-grid {
   position: relative;
   z-index: 2;
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 1.4fr 1fr;
-  grid-template-rows: 1fr 1fr 0.85fr;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1.15fr 0.95fr 0.9fr;
   gap: 8px;
 }
 
@@ -261,33 +275,26 @@ const kpiBarItems = computed(() => {
 
 .blue-grid__cell > * { flex: 1; min-height: 0; }
 
-.blue-grid__cell--r1c1 { grid-column: 1; grid-row: 1; }
-.blue-grid__cell--map  { grid-column: 2; grid-row: 1 / 3; overflow: visible; }
-.blue-grid__cell--r1c3 { grid-column: 3; grid-row: 1; }
-.blue-grid__cell--r2c1 { grid-column: 1; grid-row: 2; }
-.blue-grid__cell--r2c3 { grid-column: 3; grid-row: 2; }
-.blue-grid__cell--r3c1 { grid-column: 1; grid-row: 3; }
-.blue-grid__cell--r3c2 { grid-column: 2; grid-row: 3; }
-.blue-grid__cell--r3c3 { grid-column: 3; grid-row: 3; }
+.blue-grid__cell--r1 { grid-column: 1 / 4; grid-row: 1; }
+.blue-grid__cell--r2a { grid-column: 1; grid-row: 2; }
+.blue-grid__cell--r2b { grid-column: 2 / 4; grid-row: 2; }
+.blue-grid__cell--r3a { grid-column: 1; grid-row: 3; }
+.blue-grid__cell--r3b { grid-column: 2 / 4; grid-row: 3; }
 
 @media (max-width: 900px) {
   .blue-grid {
     grid-template-columns: 1fr;
     grid-template-rows: auto;
   }
-  .blue-grid__cell--map { grid-column: 1; grid-row: auto; min-height: 360px; }
-  .blue-grid__cell--r1c1,
-  .blue-grid__cell--r1c3,
-  .blue-grid__cell--r2c1,
-  .blue-grid__cell--r2c3,
-  .blue-grid__cell--r3c1,
-  .blue-grid__cell--r3c2,
-  .blue-grid__cell--r3c3 {
+  .blue-grid__cell--r1,
+  .blue-grid__cell--r2a,
+  .blue-grid__cell--r2b,
+  .blue-grid__cell--r3a,
+  .blue-grid__cell--r3b {
     grid-column: 1;
     grid-row: auto;
     min-height: 200px;
   }
   .blue-top { grid-template-columns: 1fr; text-align: center; }
-  .blue-kpi-bar { flex-wrap: wrap; gap: 16px; }
 }
 </style>

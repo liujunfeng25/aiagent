@@ -12,7 +12,6 @@
     "@element-plus/icons-vue": "^2.3.0",
     "axios": "^1.6.0",
     "echarts": "^5.4.0",
-    "echarts-gl": "^2.0.9",
     "element-plus": "^2.5.0",
     "vue": "^3.4.0",
     "vue-router": "^4.2.0"

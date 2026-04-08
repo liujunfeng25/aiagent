@@ -1,9 +1,9 @@
 <template>
   <div class="data-insights">
-    <header class="insight-page-head">
-      <h1>数据洞察</h1>
-      <p class="sub">多源数据一览 · 辅助经营决策</p>
-    </header>
+    <AiPageHeader
+      title="智能数据洞察"
+      subtitle="多源业务数据统一分析，辅助经营决策与风险预警"
+    />
 
     <el-tabs v-model="activeTab" class="insight-tabs" @tab-change="onTabChange">
       <el-tab-pane label="订单与销售" name="orders">
@@ -29,6 +29,7 @@ import XinfadiTrends from './insights/XinfadiTrends.vue'
 import BusinessOrders from './insights/BusinessOrders.vue'
 import BusinessBackorder from './insights/BusinessBackorder.vue'
 import BusinessXinfadiDb from './insights/BusinessXinfadiDb.vue'
+import AiPageHeader from '../components/ui/AiPageHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -77,21 +78,7 @@ watch(() => route.query.tab, () => {
 .data-insights {
   max-width: 1280px;
   margin: 0 auto;
-}
-
-.insight-page-head {
-  margin-bottom: 20px;
-}
-.insight-page-head h1 {
-  font-size: 24px;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.02em;
-}
-.insight-page-head .sub {
-  margin-top: 6px;
-  font-size: 14px;
-  color: #64748b;
+  color: var(--ai-text-primary, #f1f5f9);
 }
 
 .insight-tabs :deep(.el-tabs__header) {
@@ -100,9 +87,31 @@ watch(() => route.query.tab, () => {
 .insight-tabs :deep(.el-tabs__item) {
   font-size: 15px;
   font-weight: 500;
+  color: rgba(203, 213, 225, 0.78) !important;
+  transition: color 0.2s ease;
+}
+.insight-tabs :deep(.el-tabs__item:hover) {
+  color: #f8fafc !important;
+}
+.insight-tabs :deep(.el-tabs__item.is-active) {
+  color: #7dd3fc !important;
+  font-weight: 600;
+}
+.insight-tabs :deep(.el-tabs__active-bar) {
+  background: linear-gradient(90deg, #22d3ee, #38bdf8) !important;
+  height: 3px;
+  border-radius: 3px;
 }
 .insight-tabs :deep(.el-tabs__nav-wrap::after) {
   height: 1px;
-  background: #e2e8f0;
+  background: rgba(56, 189, 248, 0.32);
+}
+.insight-tabs :deep(.el-tabs__nav-next),
+.insight-tabs :deep(.el-tabs__nav-prev) {
+  color: #94a3b8;
+}
+.insight-tabs :deep(.el-tabs__nav-next:hover),
+.insight-tabs :deep(.el-tabs__nav-prev:hover) {
+  color: #e2e8f0;
 }
 </style>

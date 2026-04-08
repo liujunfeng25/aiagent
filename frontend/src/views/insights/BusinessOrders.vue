@@ -233,7 +233,7 @@ onUnmounted(() => {
 }
 .range-hint {
   font-size: 13px;
-  color: #64748b;
+  color: rgba(203, 213, 225, 0.9);
 }
 .source-tip-hit {
   display: inline-flex;
@@ -242,12 +242,12 @@ onUnmounted(() => {
   outline: none;
 }
 .source-tip-icon {
-  color: #94a3b8;
+  color: #7dd3fc;
   font-size: 16px;
 }
 .source-tip-hit:hover .source-tip-icon,
 .source-tip-hit:focus-visible .source-tip-icon {
-  color: #64748b;
+  color: #bae6fd;
 }
 .boss-tip-text {
   line-height: 1.55;
@@ -256,6 +256,12 @@ onUnmounted(() => {
 .filter-card {
   border-radius: 12px;
   margin-bottom: 16px;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  background: rgba(248, 250, 252, 0.97);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+}
+.filter-card :deep(.el-card__body) {
+  background: transparent;
 }
 .filter-form {
   margin-bottom: 0;

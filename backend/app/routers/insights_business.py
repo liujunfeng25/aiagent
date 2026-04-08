@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, time
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from zoneinfo import ZoneInfo
@@ -11,6 +11,10 @@ from zoneinfo import ZoneInfo
 import pymysql
 
 from app.business_insights import schema as S
+from app.business_insights.order_items_resolver import (
+    build_qty_sql,
+    resolve_order_items_spec,
+)
 from app.services.business_mysql import BusinessMysqlConfig, resolve_business_mysql
 from app.services.db_connector import get_connection
 
@@ -274,30 +278,40 @@ def goods_top(
     end_date: Optional[str] = Query(None),
     limit: int = Query(S.TOP_GOODS_DEFAULT, ge=1, le=S.TOP_GOODS_MAX),
 ):
-    """单品排名：按商品名称分组，SUM 数量与金额，取 TOP N。"""
+    """单品排名：按商品名称分组，SUM 数量与金额，取 TOP N。明细表通过 INFORMATION_SCHEMA 自动识别。"""
     cfg = _cfg_or_503()
     start, end = _parse_range(start_date, end_date)
     t0, t1 = _day_start_ts(start), _day_end_ts(end)
     ot = S.ORDERS_TIME_COL
-    gn = S.ORDER_GOODS_NAME_COL
-    gq = S.ORDER_GOODS_QTY_COL
-    ga = S.ORDER_GOODS_AMOUNT_COL
-    oid = S.ORDER_GOODS_ORDER_ID_COL
     otbl = S.ORDERS_TABLE
-    gtbl = S.ORDER_GOODS_TABLE
-    sql = f"""
-        SELECT g.`{gn}` AS goods_name,
-               COALESCE(SUM(g.`{gq}`), 0) AS total_qty,
-               COALESCE(SUM(g.`{ga}` * g.`{gq}`), 0) AS total_amount
-        FROM `{gtbl}` g
-        JOIN `{otbl}` o ON g.`{oid}` = o.order_id
-        WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s
-        GROUP BY g.`{gn}`
-        ORDER BY total_amount DESC
-        LIMIT %s
-    """
     conn = _mysql_connect(cfg)
     try:
+        spec = resolve_order_items_spec(conn, cfg.database, otbl)
+        if not spec:
+            return {
+                "start_date": start.isoformat(),
+                "end_date": end.isoformat(),
+                "rows": [],
+                "warning": "未识别到可用的订单明细表（需含订单外键、品名、数量、单价等字段）。"
+                " 可设置环境变量 INSIGHTS_ORDER_ITEMS_TABLE 等，详见 data_catalog.md。",
+            }
+        qty_expr = build_qty_sql("g", spec.qty_cols)
+        gn = spec.goods_name_col
+        gp = spec.price_col
+        join_fk = spec.items_order_fk
+        opk = spec.orders_pk
+        itbl = spec.items_table
+        sql = f"""
+            SELECT g.`{gn}` AS goods_name,
+                   COALESCE(SUM({qty_expr}), 0) AS total_qty,
+                   COALESCE(SUM(g.`{gp}` * ({qty_expr})), 0) AS total_amount
+            FROM `{itbl}` g
+            JOIN `{otbl}` o ON g.`{join_fk}` = o.`{opk}`
+            WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s
+            GROUP BY g.`{gn}`
+            ORDER BY total_amount DESC
+            LIMIT %s
+        """
         try:
             with conn.cursor() as cur:
                 cur.execute(sql, (t0, t1, limit))
@@ -305,7 +319,7 @@ def goods_top(
         except pymysql.MySQLError as e:
             raise HTTPException(
                 status_code=503,
-                detail=f"业务库查询失败（可能缺 `{gtbl}` 表）：{e}",
+                detail=f"业务库查询失败（明细表 `{itbl}` JOIN `{otbl}`）：{e}",
             ) from e
     finally:
         conn.close()
@@ -313,6 +327,8 @@ def goods_top(
         "start_date": start.isoformat(),
         "end_date": end.isoformat(),
         "rows": rows,
+        "resolved_items_table": itbl,
+        "resolved_orders_pk": opk,
     }
 
 
@@ -358,4 +374,145 @@ def region_distribution(
         "start_date": start.isoformat(),
         "end_date": end.isoformat(),
         "rows": rows,
+    }
+
+
+@router.get("/meta/tables")
+def meta_tables():
+    """只读：INFORMATION_SCHEMA 列清单，供盘点可用字段（不返回连接信息）。"""
+    cfg = _cfg_or_503()
+    conn = _mysql_connect(cfg)
+    try:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, ORDINAL_POSITION
+                    FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = %s
+                    ORDER BY TABLE_NAME, ORDINAL_POSITION
+                    """,
+                    (cfg.database,),
+                )
+                raw = [_jsonable_row(dict(r)) for r in cur.fetchall()]
+        except pymysql.MySQLError as e:
+            raise HTTPException(status_code=503, detail=f"读取元数据失败：{e}") from e
+    finally:
+        conn.close()
+
+    tables: dict[str, list[dict[str, Any]]] = {}
+    for row in raw:
+        t = str(row.get("TABLE_NAME") or "")
+        if not t:
+            continue
+        tables.setdefault(t, []).append(
+            {
+                "column": row.get("COLUMN_NAME"),
+                "data_type": row.get("DATA_TYPE"),
+            }
+        )
+    return {
+        "database": cfg.database,
+        "source": cfg.source,
+        "table_count": len(tables),
+        "tables": [{"name": k, "columns": v} for k, v in sorted(tables.items())],
+    }
+
+
+@router.get("/kpi-summary")
+def kpi_summary(
+    scope: Literal["range", "today"] = Query(
+        "range",
+        description="range：与 start/end 组成近30天；today：仅上海时区当日",
+    ),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+):
+    cfg = _cfg_or_503()
+    if scope == "today":
+        day = datetime.now(_TZ).date()
+        start, end = day, day
+    else:
+        start, end = _parse_range(start_date, end_date)
+    t0, t1 = _day_start_ts(start), _day_end_ts(end)
+    ot, ta = S.ORDERS_TIME_COL, S.ORDERS_AMOUNT_COL
+    sql = f"""
+        SELECT COUNT(*) AS order_count,
+               COALESCE(SUM(`{ta}`), 0) AS gmv
+        FROM `{S.ORDERS_TABLE}`
+        WHERE `{ot}` >= %s AND `{ot}` <= %s
+    """
+    conn = _mysql_connect(cfg)
+    try:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, (t0, t1))
+                row = cur.fetchone() or {}
+                row = dict(row)
+        except pymysql.MySQLError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"业务库查询失败：`{S.ORDERS_TABLE}` — {e}",
+            ) from e
+    finally:
+        conn.close()
+
+    order_count = int(row.get("order_count") or 0)
+    gmv = float(row.get("gmv") or 0)
+    avg_ticket = round(gmv / order_count, 2) if order_count else 0.0
+    return {
+        "scope": scope,
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "order_count": order_count,
+        "gmv": gmv,
+        "avg_ticket": avg_ticket,
+    }
+
+
+@router.get("/orders-calendar-heatmap")
+def orders_calendar_heatmap(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+):
+    """按日聚合订单量与 GMV，供 ECharts calendar+heatmap（逻辑同 orders-daily）。"""
+    cfg = _cfg_or_503()
+    start, end = _parse_range(start_date, end_date)
+    t0, t1 = _day_start_ts(start), _day_end_ts(end)
+    ot, ta = S.ORDERS_TIME_COL, S.ORDERS_AMOUNT_COL
+    sql = f"""
+        SELECT DATE(FROM_UNIXTIME(`{ot}`)) AS day,
+               COUNT(*) AS order_count,
+               COALESCE(SUM(`{ta}`), 0) AS gmv
+        FROM `{S.ORDERS_TABLE}`
+        WHERE `{ot}` >= %s AND `{ot}` <= %s
+        GROUP BY DATE(FROM_UNIXTIME(`{ot}`))
+        ORDER BY day
+    """
+    conn = _mysql_connect(cfg)
+    try:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, (t0, t1))
+                series = [_jsonable_row(dict(r)) for r in cur.fetchall()]
+        except pymysql.MySQLError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"业务库查询失败：`{S.ORDERS_TABLE}` — {e}",
+            ) from e
+    finally:
+        conn.close()
+
+    return {
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "max_range_days": S.MAX_RANGE_DAYS,
+        "cells": [
+            {
+                "date": str(r.get("day") or "")[:10],
+                "order_count": int(r.get("order_count") or 0),
+                "gmv": float(r.get("gmv") or 0),
+            }
+            for r in series
+        ],
     }

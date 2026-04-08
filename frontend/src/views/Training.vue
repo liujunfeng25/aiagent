@@ -1,6 +1,10 @@
 <template>
   <div class="training-page">
-    <h2 class="page-title">训练管理</h2>
+    <AiPageHeader
+      title="模型训练中心"
+      subtitle="数据准备 → 训练配置 → 结果评估，形成闭环训练流水线"
+    />
+    <PipelineStepper :items="pipelineItems" :active-index="pipelineActiveIndex" class="pipeline" />
 
     <el-card class="card-start">
       <template #header>开始训练</template>
@@ -120,6 +124,8 @@ import { listTasks, createTask as apiCreateTask, getTaskStatus, deleteTask, getD
 import { list as listDatasets } from '../api/datasets'
 import { trainFromCategories } from '../api/categories'
 import { formatBeijingTime } from '../utils/format'
+import AiPageHeader from '../components/ui/AiPageHeader.vue'
+import PipelineStepper from '../components/ui/PipelineStepper.vue'
 
 const router = useRouter()
 const tasks = ref([])
@@ -135,6 +141,17 @@ const trainFromCategoriesVisible = ref(false)
 const categoryEpochs = ref(10)
 const categoryTrainLoading = ref(false)
 const sinceLast = ref(null)
+const pipelineItems = [
+  { key: 'data', label: '数据准备' },
+  { key: 'train', label: '训练配置' },
+  { key: 'result', label: '结果评估' },
+]
+const pipelineActiveIndex = computed(() => {
+  const s = progressData.value.status
+  if (s === 'done' || s === 'error') return 2
+  if (s === 'running' || s === 'starting') return 1
+  return 0
+})
 
 const progressData = computed(() => {
   const s = statusData.value
@@ -313,7 +330,7 @@ onMounted(async () => {
 
 <style scoped>
 .training-page { max-width: 900px; }
-.page-title { margin-bottom: 16px; font-size: 20px; }
+.pipeline { margin-bottom: 14px; }
 .card-start { margin-bottom: 16px; }
 .card-progress { margin-bottom: 16px; }
 .card-tasks { margin-bottom: 16px; }

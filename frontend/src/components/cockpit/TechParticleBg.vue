@@ -37,14 +37,16 @@ function render(ctx, width, height, t) {
   ctx.clearRect(0, 0, width, height)
 
   const g = ctx.createRadialGradient(width * 0.5, height * 0.08, 20, width * 0.5, height * 0.55, width * 0.9)
-  g.addColorStop(0, 'rgba(59,130,246,0.2)')
-  g.addColorStop(1, 'rgba(2,6,23,0)')
+  g.addColorStop(0, 'rgba(96,165,250,0.16)')
+  g.addColorStop(0.55, 'rgba(51,65,120,0.06)')
+  g.addColorStop(1, 'rgba(255,255,255,0)')
   ctx.fillStyle = g
   ctx.fillRect(0, 0, width, height)
 
   const maxDist = 140
-  const mouseRadius = 170
-  const forceBase = 0.045
+  const mouseRadius = 190
+  /** 略加强，全窗口跟随鼠标时更容易感知吸引/排斥 */
+  const forceBase = 0.072
 
   for (let i = 0; i < particles.length; i += 1) {
     const p = particles[i]
@@ -131,38 +133,44 @@ function start() {
     window.clearTimeout(resizeTimer)
     resizeTimer = window.setTimeout(fit, 120)
   }
-  const onMove = (e) => {
+
+  /**
+   * 画布在 App 里挂了 pointer-events:none，不能直接监听 canvas。
+   * 用 window 追踪鼠标并映射到画布坐标，全页移动都有吸引/排斥。
+   */
+  const syncMouse = (e) => {
     const rect = canvas.getBoundingClientRect()
-    mouse.x = e.clientX - rect.left
-    mouse.y = e.clientY - rect.top
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    mouse.x = Math.max(0, Math.min(canvas.clientWidth || rect.width, x))
+    mouse.y = Math.max(0, Math.min(canvas.clientHeight || rect.height, y))
     mouse.active = true
   }
-  const onLeave = () => {
-    mouse.active = false
-    mouse.x = -9999
-    mouse.y = -9999
-  }
-  const onDown = (e) => {
+
+  const onWinMove = (e) => syncMouse(e)
+  const onWinDown = (e) => {
     mouse.mode = e.button === 2 ? 'repel' : 'attract'
-    mouse.active = true
+    syncMouse(e)
   }
-  const onUp = () => {
+  const onWinUp = () => {
     mouse.mode = 'attract'
+  }
+  const onBlur = () => {
+    mouse.active = false
   }
 
   window.addEventListener('resize', onResize)
-  canvas.addEventListener('mousemove', onMove)
-  canvas.addEventListener('mouseleave', onLeave)
-  canvas.addEventListener('mousedown', onDown)
-  window.addEventListener('mouseup', onUp)
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault())
+  window.addEventListener('mousemove', onWinMove)
+  window.addEventListener('mousedown', onWinDown)
+  window.addEventListener('mouseup', onWinUp)
+  window.addEventListener('blur', onBlur)
 
   detachResize = () => window.removeEventListener('resize', onResize)
   detachMouse = () => {
-    canvas.removeEventListener('mousemove', onMove)
-    canvas.removeEventListener('mouseleave', onLeave)
-    canvas.removeEventListener('mousedown', onDown)
-    window.removeEventListener('mouseup', onUp)
+    window.removeEventListener('mousemove', onWinMove)
+    window.removeEventListener('mousedown', onWinDown)
+    window.removeEventListener('mouseup', onWinUp)
+    window.removeEventListener('blur', onBlur)
   }
 
   const tick = () => {

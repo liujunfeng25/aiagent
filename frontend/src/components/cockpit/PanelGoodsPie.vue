@@ -1,6 +1,6 @@
 <template>
   <CockpitPanel title="单品分布" title-en="PRODUCT DISTRIBUTION">
-    <div ref="chartRef" class="pie-chart" />
+    <div ref="chartRef" class="goods-chart" />
   </CockpitPanel>
 </template>
 
@@ -19,42 +19,87 @@ const chart = shallowRef(null)
 const COLORS = [
   '#22d3ee', '#ff6b6b', '#a78bfa', '#facc15',
   '#34d399', '#fb7185', '#60a5fa', '#f97316',
-  '#e879f9', '#84cc16',
+  '#e879f9', '#84cc16', '#2dd4bf', '#f472b6',
 ]
 
 function buildOption(data) {
+  const rows = [...(data || [])]
+    .sort((a, b) => Number(b.total_amount || 0) - Number(a.total_amount || 0))
+    .slice(0, 8)
+
+  const names = rows.map((r) => r.goods_name || '—')
+  const amounts = rows.map((r) => Number(r.total_amount || 0))
+
   return {
+    grid: {
+      left: 4,
+      right: 70,
+      top: 12,
+      bottom: 4,
+      containLabel: true,
+    },
     tooltip: {
-      trigger: 'item',
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
       backgroundColor: 'rgba(2,6,23,0.92)',
       borderColor: 'rgba(34,211,238,0.3)',
       textStyle: { color: '#e2e8f0', fontSize: 12 },
-      formatter: '{b}: ¥{c} ({d}%)',
+      formatter(params) {
+        const p = params[0]
+        const i = p.dataIndex
+        const name = names[i] || ''
+        const amt = amounts[i]
+        const qty = rows[i]?.total_qty
+        const qStr = qty != null ? `<br/>数量: ${Number(qty).toLocaleString()}` : ''
+        return `${name}<br/>金额: ¥${Number(amt).toLocaleString()}${qStr}`
+      },
     },
-    legend: {
-      orient: 'vertical',
-      right: 6,
-      top: 'center',
-      textStyle: { color: 'rgba(148,163,184,0.85)', fontSize: 10 },
-      itemWidth: 10,
-      itemHeight: 10,
+    xAxis: {
+      type: 'value',
+      splitLine: { lineStyle: { color: 'rgba(34,211,238,0.06)' } },
+      axisLabel: {
+        color: 'rgba(148,163,184,0.72)',
+        fontSize: 10,
+        formatter: (v) => (v >= 10000 ? `${(v / 10000).toFixed(1)}万` : v),
+      },
+    },
+    yAxis: {
+      type: 'category',
+      data: names,
+      inverse: true,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        color: 'rgba(203,213,225,0.92)',
+        fontSize: 9,
+        lineHeight: 14,
+        width: 108,
+        overflow: 'truncate',
+        ellipsis: '…',
+        margin: 6,
+      },
     },
     series: [{
-      type: 'pie',
-      radius: ['40%', '68%'],
-      center: ['38%', '50%'],
-      avoidLabelOverlap: true,
-      label: { show: false },
-      emphasis: {
-        label: { show: true, color: '#e2e8f0', fontSize: 12 },
-        itemStyle: { shadowBlur: 14, shadowColor: 'rgba(34,211,238,0.4)' },
-      },
-      itemStyle: { borderColor: 'rgba(10,15,35,0.9)', borderWidth: 2 },
-      data: data.map((g, i) => ({
-        name: g.goods_name,
-        value: g.total_amount,
-        itemStyle: { color: COLORS[i % COLORS.length] },
+      type: 'bar',
+      barCategoryGap: '32%',
+      data: amounts.map((v, i) => ({
+        value: v,
+        itemStyle: {
+          color: COLORS[i % COLORS.length],
+          borderRadius: [0, 4, 4, 0],
+        },
       })),
+      barMaxWidth: 22,
+      label: {
+        show: true,
+        position: 'right',
+        color: 'rgba(226,232,240,0.88)',
+        fontSize: 9,
+        formatter(p) {
+          const n = p.value
+          return n >= 10000 ? `${(n / 10000).toFixed(1)}万` : `${Math.round(n)}`
+        },
+      },
     }],
   }
 }
@@ -81,5 +126,9 @@ watch(() => props.data, (v) => {
 </script>
 
 <style scoped>
-.pie-chart { width: 100%; height: 100%; min-height: 160px; }
+.goods-chart {
+  width: 100%;
+  height: 100%;
+  min-height: 160px;
+}
 </style>
