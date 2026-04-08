@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from config import TEST_IMAGES_DIR
 from app.database import init_db
-from app.routers import dashboard, datasources, datasets, training, models, analysis, system, recognition, categories, documents, insights_business, logistics
+from app.routers import dashboard, datasets, training, models, analysis, system, recognition, categories, documents, insights_business, logistics
 from app.xinfadi.routes import router as xinfadi_router
 
 app = FastAPI(title="AI Agent 平台", description="AI 训练与数据智能平台 API")
@@ -31,7 +31,6 @@ app.add_middleware(
 
 # 路由
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
-app.include_router(datasources.router, prefix="/api/datasources", tags=["datasources"])
 app.include_router(datasets.router, prefix="/api/datasets", tags=["datasets"])
 app.include_router(training.router, prefix="/api/training", tags=["training"])
 app.include_router(models.router, prefix="/api/models", tags=["models"])

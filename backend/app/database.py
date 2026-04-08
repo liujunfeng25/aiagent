@@ -49,7 +49,7 @@ def get_db():
 
 
 def init_db():
-    from app.models import DataSource, Dataset, TrainTask, Model, OperationLog, \
+    from app.models import Dataset, TrainTask, Model, OperationLog, \
         Vehicle, SlCameraDevice, SlThDevice, SlVehicleBindBeidou, SlVehicleBindCamera, \
         SlVehicleBindTh, LogisticsFee, LogisticsFeeItem
     from config import CATEGORIES_DIR

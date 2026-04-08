@@ -1,6 +1,7 @@
 <template>
   <el-config-provider :locale="zhCn">
-    <el-container class="layout">
+    <router-view v-if="isPublicLayout" class="public-route-view" />
+    <el-container v-else class="layout">
       <TechParticleBg class="app-tech-bg" />
       <el-aside width="220px" class="sidebar">
         <div class="logo">
@@ -29,10 +30,6 @@
             <template #title>
               <span class="menu-group">数据与训练</span>
             </template>
-            <el-menu-item index="/datasources">
-              <el-icon><Connection /></el-icon>
-              <span>数据源</span>
-            </el-menu-item>
             <el-menu-item index="/datasets" title="训练用图片数据集，与业务库分析无关">
               <el-icon><Folder /></el-icon>
               <span>数据集</span>
@@ -101,12 +98,12 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 import {
   Monitor,
   Odometer,
-  Connection,
   Folder,
   Collection,
   VideoPlay,
@@ -121,13 +118,24 @@ import {
 import TechParticleBg from './components/cockpit/TechParticleBg.vue'
 
 const route = useRoute()
+const isPublicLayout = computed(() => route.meta.public === true)
 </script>
 
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body, #app {
+html {
+  overflow-x: hidden;
+}
+html, body {
   height: 100%;
-  /* 略抬亮度：避免粒子层 + 深色卡片叠成「糊成一团」 */
+  margin: 0;
+}
+#app {
+  min-height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  /* 业务区略抬亮度；登录页自身全屏背景会盖住 */
   background: linear-gradient(165deg, #172554 0%, #1e3a5f 42%, #152042 100%);
 }
 :root {
@@ -141,6 +149,13 @@ html, body, #app {
   --ai-border-glow: rgba(56, 189, 248, 0.4);
   --ai-text-primary: #f1f5f9;
   --ai-text-secondary: rgba(203, 213, 225, 0.92);
+}
+/* 登录等公开页：与 #app 同高，避免四周露出灰边 */
+.public-route-view {
+  display: block;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
 }
 .layout {
   height: 100%;

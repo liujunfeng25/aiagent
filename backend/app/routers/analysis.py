@@ -1,30 +1,32 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.database import get_db
-from app.models import DataSource
-from app.services.db_connector import execute_query, decode_password
+from app.services.business_mysql import resolve_business_mysql
+from app.services.db_connector import execute_query
 
 router = APIRouter()
 
 
 class QueryRequest(BaseModel):
-    data_source_id: int
     sql: str
 
 
 @router.post("/query")
-def run_query(body: QueryRequest, db: Session = Depends(get_db)):
-    ds = db.query(DataSource).filter(DataSource.id == body.data_source_id).first()
-    if not ds:
-        raise HTTPException(404, "数据源不存在")
+def run_query(body: QueryRequest):
+    """对业务库执行只读 SELECT（与数据洞察同源：环境变量 INSIGHTS_MYSQL_*）。"""
+    cfg = resolve_business_mysql()
+    if not cfg:
+        raise HTTPException(
+            503,
+            "未配置业务库：请设置 INSIGHTS_MYSQL_HOST（及 PORT/USER/PASSWORD/DATABASE）。",
+        )
     sql = body.sql.strip()
     if not sql.lower().startswith("select"):
         raise HTTPException(400, "仅支持 SELECT 查询")
-    pwd = decode_password(ds.password_encrypted)
     try:
-        rows, columns = execute_query(ds.host, ds.port, ds.database, ds.username, pwd, sql)
+        rows, columns = execute_query(
+            cfg.host, cfg.port, cfg.database, cfg.user, cfg.password, sql
+        )
         return {"columns": columns, "rows": rows}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, str(e)) from e

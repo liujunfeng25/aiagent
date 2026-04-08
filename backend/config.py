@@ -68,8 +68,8 @@ PRESET_VEGETABLE_MODEL_DIR = PROJECT_ROOT / "preset_vegetable_model"
 TOP_K = 5
 INFERENCE_DEVICE = "cpu"
 
-# 数据洞察：直连业务 MySQL。未设置 INSIGHTS_MYSQL_HOST 时**不**臆造 127.0.0.1（否则本机未起库会到处 500），
-# 改走「数据源」里第一条 MySQL；Docker 见 aiagent/docker-compose.yml 已设 HOST=mysql。
+# 数据洞察：直连业务 MySQL。未设置 INSIGHTS_MYSQL_HOST 时**不**臆造 127.0.0.1（否则本机未起库会到处 500）；
+# 请用环境变量配置，Docker 见 aiagent/docker-compose.yml。
 _INSIGHTS_HOST = os.environ.get("INSIGHTS_MYSQL_HOST", "").strip()
 INSIGHTS_MYSQL_HOST = _INSIGHTS_HOST
 INSIGHTS_MYSQL_PORT = int(os.environ.get("INSIGHTS_MYSQL_PORT", "3307"))

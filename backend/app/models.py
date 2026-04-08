@@ -17,27 +17,13 @@ def _beijing_now():
         return datetime.now(_BEIJING_TZ).replace(tzinfo=None)
 
 
-class DataSource(Base):
-    __tablename__ = "data_sources"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
-    type = Column(String(20), default="mysql")  # mysql, postgres, ...
-    host = Column(String(255), nullable=False)
-    port = Column(Integer, default=3306)
-    database = Column(String(100), nullable=False)
-    username = Column(String(100), nullable=False)
-    password_encrypted = Column(String(500))  # base64 或加密存储
-    created_at = Column(DateTime, default=_beijing_now)
-
-
 class Dataset(Base):
     __tablename__ = "datasets"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)
     source_type = Column(String(20), default="upload")  # upload, from_source
-    source_id = Column(Integer, ForeignKey("data_sources.id"), nullable=True)
+    source_id = Column(Integer, nullable=True)  #  historic; 原「数据源」模块已移除
     config_json = Column(Text)  # 表名、字段、条件等
     row_count = Column(Integer, default=0)
     local_path = Column(String(500))  # 本地路径

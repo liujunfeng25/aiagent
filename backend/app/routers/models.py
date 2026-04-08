@@ -1,63 +1,112 @@
+from __future__ import annotations
+
 import json
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-
-
-class RenameBody(BaseModel):
-    name: str
 from app.models import Dataset, Model, TrainTask
 from app.services.operation_log import add_log
 
 router = APIRouter()
 
 
+class RenameBody(BaseModel):
+    name: str
+
+
+def default_model_display_name(dataset_name: Optional[str], task_id: int) -> str:
+    """训练完成写入 Model.name 的默认规则（与 ensure_model_from_task 一致）。"""
+    if dataset_name:
+        return f"{dataset_name}模型"
+    return f"模型-{task_id}"
+
+
+def _metrics_val_acc(metrics_json: Optional[str]) -> float:
+    if not metrics_json:
+        return 0.0
+    try:
+        metrics = json.loads(metrics_json)
+        return float(metrics.get("val_acc", 0))
+    except Exception:
+        return 0.0
+
+
+def _enriched_model_fields(m: Model, task: Optional[TrainTask], ds: Optional[Dataset]) -> dict:
+    dataset_id = task.dataset_id if task else None
+    dataset_name = ds.name if ds and ds.name else "-"
+    default_name = default_model_display_name(ds.name if ds else None, m.task_id)
+    name_is_custom = m.name != default_name
+    return {
+        "dataset_id": dataset_id,
+        "dataset_name": dataset_name,
+        "task_id": m.task_id,
+        "name_is_custom": name_is_custom,
+    }
+
+
+@router.post("/sync-display-names")
+def sync_display_names(db: Session = Depends(get_db)):
+    """将各模型显示名重置为「当前数据集名+模型」规则（覆盖自定义名称）。须放在 /{id} 之前注册。"""
+    n = sync_model_display_names_from_datasets(db)
+    return {"message": "已同步", "updated": n}
+
+
 @router.get("/")
 def list_models(db: Session = Depends(get_db)):
-    items = db.query(Model).order_by(Model.created_at.desc()).all()
+    rows = (
+        db.query(Model, TrainTask, Dataset)
+        .join(TrainTask, Model.task_id == TrainTask.id)
+        .outerjoin(Dataset, TrainTask.dataset_id == Dataset.id)
+        .order_by(Model.created_at.desc())
+        .all()
+    )
     result = []
-    for m in items:
-        task = db.query(TrainTask).filter(TrainTask.id == m.task_id).first()
-        metrics = {}
-        if m.metrics_json:
-            try:
-                metrics = json.loads(m.metrics_json)
-            except Exception:
-                pass
+    for m, task, ds in rows:
+        meta = _enriched_model_fields(m, task, ds)
         result.append({
             "id": m.id,
-            "task_id": m.task_id,
             "name": m.name,
-            "val_acc": metrics.get("val_acc", 0),
+            "val_acc": _metrics_val_acc(m.metrics_json),
             "path": m.path,
             "deployed": m.deployed,
             "created_at": m.created_at.isoformat() if m.created_at else None,
+            **meta,
         })
     return {"data": result}
 
 
 @router.get("/{id}")
 def get_model(id: int, db: Session = Depends(get_db)):
-    m = db.query(Model).filter(Model.id == id).first()
-    if not m:
+    row = (
+        db.query(Model, TrainTask, Dataset)
+        .join(TrainTask, Model.task_id == TrainTask.id)
+        .outerjoin(Dataset, TrainTask.dataset_id == Dataset.id)
+        .filter(Model.id == id)
+        .first()
+    )
+    if not row:
         raise HTTPException(404, "模型不存在")
+    m, task, ds = row
     metrics = {}
     if m.metrics_json:
         try:
             metrics = json.loads(m.metrics_json)
         except Exception:
             pass
+    meta = _enriched_model_fields(m, task, ds)
     return {
         "id": m.id,
-        "task_id": m.task_id,
         "name": m.name,
         "metrics_json": m.metrics_json,
+        "val_acc": metrics.get("val_acc", 0),
         "path": m.path,
         "deployed": m.deployed,
         "created_at": m.created_at.isoformat() if m.created_at else None,
+        **meta,
     }
 
 
@@ -97,7 +146,7 @@ def ensure_model_from_task(task_id: int, db: Session):
     if not task or not task.model_path:
         return
     ds = db.query(Dataset).filter(Dataset.id == task.dataset_id).first()
-    model_name = f"{ds.name}模型" if ds and ds.name else f"模型-{task_id}"
+    model_name = default_model_display_name(ds.name if ds else None, task_id)
     # 该数据集是否已有模型（通过 task_id -> TrainTask.dataset_id 关联）
     existing = (
         db.query(Model)
@@ -120,6 +169,26 @@ def ensure_model_from_task(task_id: int, db: Session):
     )
     db.add(m)
     db.commit()
+
+
+def sync_model_display_names_from_datasets(db: Session) -> int:
+    """按当前数据集名称批量重置 Model.name，返回实际修改条数。"""
+    rows = (
+        db.query(Model, TrainTask, Dataset)
+        .join(TrainTask, Model.task_id == TrainTask.id)
+        .outerjoin(Dataset, TrainTask.dataset_id == Dataset.id)
+        .all()
+    )
+    updated = 0
+    for m, _task, ds in rows:
+        new_name = default_model_display_name(ds.name if ds else None, m.task_id)
+        if m.name != new_name:
+            m.name = new_name
+            updated += 1
+    if updated:
+        db.commit()
+        add_log("sync_model_display_names", f"按数据集同步模型显示名，更新 {updated} 条")
+    return updated
 
 
 def dedupe_models_by_dataset(db: Session) -> int:

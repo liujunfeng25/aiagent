@@ -1,6 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { isLoggedIn } from '../utils/authSession'
 
 const routes = [
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('../views/Login.vue'),
+    meta: { public: true, title: '登录', fullBleed: true },
+  },
   {
     path: '/cockpit',
     name: 'DataCockpit',
@@ -8,7 +15,6 @@ const routes = [
     meta: { title: '数据驾驶舱', fullBleed: true },
   },
   { path: '/', name: 'Dashboard', component: () => import('../views/Dashboard.vue'), meta: { title: '工作台' } },
-  { path: '/datasources', name: 'DataSources', component: () => import('../views/DataSources.vue'), meta: { title: '数据源' } },
   { path: '/datasets', name: 'Datasets', component: () => import('../views/Datasets.vue'), meta: { title: '数据集' } },
   { path: '/categories', name: 'Categories', component: () => import('../views/Categories.vue'), meta: { title: '类别管理' } },
   { path: '/categories/:name', name: 'CategoryDetail', component: () => import('../views/CategoryDetail.vue'), meta: { title: '类别详情' } },
@@ -36,7 +42,27 @@ const routes = [
   },
 ]
 
-export default createRouter({
+const router = createRouter({
   history: createWebHistory(),
   routes,
 })
+
+router.beforeEach((to, _from, next) => {
+  if (to.meta.public) {
+    if (to.name === 'Login' && isLoggedIn()) {
+      const raw = to.query.redirect
+      const target = typeof raw === 'string' && raw.startsWith('/') ? raw : '/'
+      next({ path: target })
+      return
+    }
+    next()
+    return
+  }
+  if (!isLoggedIn()) {
+    next({ path: '/login', query: { redirect: to.fullPath } })
+    return
+  }
+  next()
+})
+
+export default router

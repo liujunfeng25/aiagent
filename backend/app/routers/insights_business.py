@@ -28,8 +28,7 @@ def _cfg_or_503() -> BusinessMysqlConfig:
     if not cfg:
         raise HTTPException(
             status_code=503,
-            detail="未配置业务库连接：请在环境变量中设置 INSIGHTS_MYSQL_HOST（及 PORT/USER/PASSWORD/DATABASE），"
-            "或在「数据源」中添加一条 MySQL 数据源。",
+            detail="未配置业务库连接：请在环境变量中设置 INSIGHTS_MYSQL_HOST（及 PORT/USER/PASSWORD/DATABASE）。",
         )
     return cfg
 
@@ -97,7 +96,7 @@ def health():
         return {
             "ok": False,
             "source": None,
-            "message": "未配置：请设置 INSIGHTS_MYSQL_* 或添加 MySQL 数据源",
+            "message": "未配置：请设置 INSIGHTS_MYSQL_* 环境变量",
         }
     try:
         conn = get_connection(cfg.host, cfg.port, cfg.database, cfg.user, cfg.password)

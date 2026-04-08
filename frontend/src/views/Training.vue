@@ -12,7 +12,7 @@
         <strong>数据从哪来：</strong>
         <router-link to="/categories">类别管理</router-link> 与
         <router-link to="/datasets">数据集</router-link> 是两套路——类别目录适合快速攒图、一键「用类别数据训练」；
-        数据集适合上传 ZIP、组合多源或从数据源导出后再训。二者选其一准备好「按文件夹分好类的图片」即可，不必两边重复维护同一批图。
+        数据集适合上传 ZIP 或组合多个已上传数据集后再训。二者选其一准备好「按文件夹分好类的图片」即可，不必两边重复维护同一批图。
       </p>
       <div class="form-row">
         <div class="form-group">
