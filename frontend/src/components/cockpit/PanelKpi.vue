@@ -17,14 +17,19 @@ const props = defineProps({
   data: { type: Object, default: () => ({}) },
 })
 
+function fmtCurrency(v) {
+  if (v == null || v === '' || Number.isNaN(Number(v))) return '--'
+  return `¥${Number(v).toLocaleString()}`
+}
+
 const items = computed(() => {
   const d = props.data
   return [
     { key: 'todayOrders', label: '今日订单', display: d.todayOrders ?? '--', color: '#22d3ee' },
-    { key: 'todayGmv', label: '今日 GMV', display: d.todayGmv ? `¥${Number(d.todayGmv).toLocaleString()}` : '--', color: '#f0c040' },
-    { key: 'avgOrderAmount', label: '平均客单价', display: d.avgOrderAmount ? `¥${d.avgOrderAmount}` : '--', color: '#38bdf8' },
-    { key: 'deliveryRate', label: '配送及时率', display: d.deliveryRate ? `${d.deliveryRate}%` : '--', color: '#22c55e' },
-    { key: 'returnRate', label: '退货率', display: d.returnRate ? `${d.returnRate}%` : '--', color: '#ef4444' },
+    { key: 'todayGmv', label: '今日 GMV', display: fmtCurrency(d.todayGmv), color: '#fbbf24' },
+    { key: 'avgOrderAmount', label: '平均客单价', display: d.avgOrderAmount != null && d.avgOrderAmount !== '' ? `¥${d.avgOrderAmount}` : '--', color: '#38bdf8' },
+    { key: 'deliveryRate', label: '配送及时率', display: d.deliveryRate != null && d.deliveryRate !== '' ? `${d.deliveryRate}%` : '--', color: '#22c55e' },
+    { key: 'returnRate', label: '退货率', display: d.returnRate != null && d.returnRate !== '' ? `${d.returnRate}%` : '--', color: '#ef4444' },
     { key: 'newCustomers', label: '新增客户', display: d.newCustomers ?? '--', color: '#a78bfa' },
   ]
 })
@@ -53,7 +58,7 @@ const items = computed(() => {
 
 .kpi-item__label {
   font-size: 11px;
-  color: rgba(148, 163, 184, 0.8);
+  color: var(--sx-text-muted);
   margin-top: 3px;
 }
 </style>

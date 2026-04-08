@@ -138,14 +138,37 @@ function buildChart() {
   const days = series.value.map((r) => String(r.day || '').slice(0, 10))
   const counts = series.value.map((r) => r.order_count ?? 0)
   const gmvs = series.value.map((r) => r.gmv ?? 0)
+  const axisLabel = 'rgba(226, 232, 240, 0.95)'
   chartInst.setOption({
-    tooltip: { trigger: 'axis' },
-    legend: { data: ['订单数', '成交额'], bottom: 0 },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: 'rgba(15, 23, 42, 0.94)',
+      borderColor: 'rgba(34, 211, 238, 0.35)',
+      textStyle: { color: '#e2e8f0', fontSize: 12 },
+    },
+    legend: { data: ['订单数', '成交额'], bottom: 0, textStyle: { color: axisLabel, fontWeight: 500 } },
     grid: { left: 48, right: 48, top: 24, bottom: 56 },
-    xAxis: { type: 'category', data: days, axisLabel: { rotate: 28 } },
+    xAxis: {
+      type: 'category',
+      data: days,
+      axisLabel: { rotate: 28, color: axisLabel },
+      axisLine: { lineStyle: { color: 'rgba(34,211,238,0.2)' } },
+    },
     yAxis: [
-      { type: 'value', name: '单数', splitLine: { lineStyle: { type: 'dashed' } } },
-      { type: 'value', name: '元', splitLine: { show: false } },
+      {
+        type: 'value',
+        name: '单数',
+        nameTextStyle: { color: axisLabel },
+        axisLabel: { color: axisLabel },
+        splitLine: { lineStyle: { type: 'dashed', color: 'rgba(34,211,238,0.08)' } },
+      },
+      {
+        type: 'value',
+        name: '元',
+        nameTextStyle: { color: axisLabel },
+        axisLabel: { color: axisLabel },
+        splitLine: { show: false },
+      },
     ],
     series: [
       { name: '订单数', type: 'bar', data: counts, itemStyle: { color: '#3b82f6' } },
@@ -233,7 +256,9 @@ onUnmounted(() => {
 }
 .range-hint {
   font-size: 13px;
-  color: rgba(203, 213, 225, 0.9);
+  font-weight: 500;
+  color: var(--sx-text-readable-muted);
+  text-shadow: var(--sx-text-shadow-readable);
 }
 .source-tip-hit {
   display: inline-flex;
@@ -254,14 +279,28 @@ onUnmounted(() => {
   font-size: 13px;
 }
 .filter-card {
-  border-radius: 12px;
+  border-radius: var(--sx-radius-panel);
   margin-bottom: 16px;
-  border: 1px solid rgba(56, 189, 248, 0.22);
-  background: rgba(248, 250, 252, 0.97);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--sx-glass-border);
+  background: var(--sx-content-card-bg);
+  box-shadow: var(--sx-panel-shadow);
+  backdrop-filter: blur(12px);
 }
 .filter-card :deep(.el-card__body) {
   background: transparent;
+}
+/* 与 .main 内全域表单标签色一致（勿再用浅底+浅字） */
+.filter-card :deep(.el-form-item__label) {
+  color: var(--sx-text-readable-muted) !important;
+  font-weight: 600;
+}
+.filter-card :deep(.el-date-editor) {
+  --el-input-text-color: var(--sx-text-body);
+  --el-input-bg-color: rgba(15, 23, 42, 0.75);
+  --el-input-border-color: var(--sx-edge-cyan-mid);
+}
+.filter-card :deep(.el-range-separator) {
+  color: var(--sx-text-readable-muted);
 }
 .filter-form {
   margin-bottom: 0;
@@ -270,35 +309,43 @@ onUnmounted(() => {
   margin-bottom: 16px;
 }
 .kpi-tile {
-  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  background: rgba(12, 18, 40, 0.82);
+  border: 1px solid var(--sx-glass-border);
+  border-radius: var(--sx-radius-panel);
   padding: 16px;
   text-align: center;
+  backdrop-filter: blur(8px);
 }
 .kpi-value {
   font-size: 22px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--sx-text-bright);
 }
 .kpi-label {
-  margin-top: 6px;
+  margin-top: 8px;
   font-size: 13px;
-  color: #64748b;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--sx-text-body);
+  text-shadow: var(--sx-text-shadow-readable);
 }
 .chart-card,
 .table-card {
-  border-radius: 12px;
+  border-radius: var(--sx-radius-panel);
   margin-bottom: 16px;
+}
+.chart-card :deep(.el-card__header),
+.table-card :deep(.el-card__header) {
+  border-bottom-color: var(--sx-edge-cyan-mid);
 }
 .card-title {
   font-weight: 600;
-  color: #334155;
+  color: var(--sx-text-title);
 }
 .card-hint {
   margin-left: 12px;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--sx-text-readable-dim);
   font-weight: normal;
 }
 .chart-box {

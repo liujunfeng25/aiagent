@@ -400,6 +400,7 @@ function updateKpi(meta, series, calendarDates) {
 }
 
 function buildChartOption(calendarDates, seriesList) {
+  const axisLabel = 'rgba(226, 232, 240, 0.95)'
   const colors = ['#2563eb', '#0891b2', '#7c3aed', '#db2777', '#ca8a04', '#16a34a']
   const series = (seriesList || []).map((ser, idx) => ({
     name: ser.name,
@@ -421,9 +422,12 @@ function buildChartOption(calendarDates, seriesList) {
 
   return {
     color: colors,
-    textStyle: { fontFamily: 'system-ui, sans-serif' },
+    textStyle: { fontFamily: 'system-ui, sans-serif', color: axisLabel },
     tooltip: {
       trigger: 'axis',
+      backgroundColor: 'rgba(15, 23, 42, 0.94)',
+      borderColor: 'rgba(34, 211, 238, 0.35)',
+      textStyle: { color: '#e2e8f0', fontSize: 12 },
       formatter(params) {
         if (!params?.length) return ''
         const axis = params[0].axisValue
@@ -443,17 +447,26 @@ function buildChartOption(calendarDates, seriesList) {
             }
             const nMerge = ser?.n?.[i] ?? 0
             const mergeHint =
-              nMerge > 1 ? ` <span style="color:#64748b;font-size:12px">· 当日${nMerge}条报价均价合并</span>` : ''
+              nMerge > 1 ? ` <span style="color:#94a3b8;font-size:12px">· 当日${nMerge}条报价均价合并</span>` : ''
             lines.push(`${p.marker}${p.seriesName}：${fmtPrice(v)}${extra}${mergeHint}`)
           }
         }
         return lines.join('<br/>')
       },
     },
-    legend: { top: 8, type: 'scroll' },
+    legend: {
+      top: 8,
+      type: 'scroll',
+      textStyle: { color: axisLabel, fontSize: 12 },
+      pageTextStyle: { color: axisLabel },
+      pageIconColor: '#94a3b8',
+      pageIconInactiveColor: '#475569',
+    },
     grid: { left: 48, right: 24, top: 48, bottom: 80 },
     toolbox: {
       right: 16,
+      iconStyle: { borderColor: 'rgba(148, 163, 184, 0.65)' },
+      emphasis: { iconStyle: { borderColor: '#e2e8f0' } },
       feature: {
         saveAsImage: { title: '导出图片', name: '新发地均价走势' },
         dataZoom: { title: { zoom: '区域缩放', back: '还原' } },
@@ -463,16 +476,36 @@ function buildChartOption(calendarDates, seriesList) {
       type: 'category',
       boundaryGap: false,
       data: calendarDates,
-      axisLabel: { rotate: 28, fontSize: 11 },
+      axisLabel: { rotate: 28, fontSize: 11, color: axisLabel },
+      axisLine: { lineStyle: { color: 'rgba(34, 211, 238, 0.2)' } },
     },
     yAxis: {
       type: 'value',
       name: '元',
-      splitLine: { lineStyle: { type: 'dashed', opacity: 0.4 } },
+      nameTextStyle: { color: axisLabel },
+      axisLabel: { color: axisLabel },
+      splitLine: { lineStyle: { type: 'dashed', color: 'rgba(34, 211, 238, 0.08)' } },
     },
     dataZoom: [
       { type: 'inside', start: 0, end: 100 },
-      { type: 'slider', start: 0, end: 100, height: 22, bottom: 12 },
+      {
+        type: 'slider',
+        start: 0,
+        end: 100,
+        height: 22,
+        bottom: 12,
+        textStyle: { color: axisLabel },
+        borderColor: 'rgba(56, 189, 248, 0.25)',
+        handleStyle: { color: 'rgba(125, 211, 252, 0.85)' },
+        dataBackground: {
+          lineStyle: { color: 'rgba(56, 189, 248, 0.2)' },
+          areaStyle: { color: 'rgba(56, 189, 248, 0.08)' },
+        },
+        selectedDataBackground: {
+          lineStyle: { color: 'rgba(56, 189, 248, 0.45)' },
+          areaStyle: { color: 'rgba(56, 189, 248, 0.18)' },
+        },
+      },
     ],
     series,
   }

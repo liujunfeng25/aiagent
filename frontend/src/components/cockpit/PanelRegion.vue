@@ -8,6 +8,7 @@
 import { ref, watch, onMounted, onUnmounted, shallowRef } from 'vue'
 import * as echarts from 'echarts'
 import CockpitPanel from './CockpitPanel.vue'
+import { sxVar } from '../../utils/sxCss.js'
 
 const props = defineProps({
   data: { type: Array, default: () => [] },
@@ -18,24 +19,33 @@ const chart = shallowRef(null)
 
 function buildOption(data) {
   const sorted = [...data].sort((a, b) => a.order_count - b.order_count)
+  const axisBright = 'rgba(226, 232, 240, 0.95)'
   return {
-    grid: { top: 8, right: 16, bottom: 18, left: 72 },
+    grid: { top: 8, right: 12, bottom: 18, left: 100 },
     tooltip: {
       trigger: 'axis',
-      backgroundColor: 'rgba(2,6,23,0.92)',
-      borderColor: 'rgba(34,211,238,0.3)',
-      textStyle: { color: '#e2e8f0', fontSize: 12 },
+      backgroundColor: sxVar('--sx-chart-tooltip-bg'),
+      borderColor: 'rgba(250, 204, 21, 0.35)',
+      borderWidth: 1,
+      textStyle: { color: '#f8fafc', fontSize: 13 },
+      extraCssText: 'box-shadow:0 4px 14px rgba(0,0,0,0.45);',
     },
     xAxis: {
       type: 'value',
-      splitLine: { lineStyle: { color: 'rgba(34,211,238,0.08)' } },
-      axisLabel: { color: 'rgba(148,163,184,0.7)', fontSize: 10 },
+      splitLine: { lineStyle: { color: sxVar('--sx-chart-split-cyan-mid') } },
+      axisLabel: { color: sxVar('--sx-chart-axis-muted'), fontSize: 10 },
     },
     yAxis: {
       type: 'category',
       data: sorted.map((r) => r.region_name),
-      axisLabel: { color: '#e2e8f0', fontSize: 11 },
-      axisLine: { lineStyle: { color: 'rgba(34,211,238,0.15)' } },
+      axisLabel: {
+        color: axisBright,
+        fontSize: 11,
+        lineHeight: 16,
+        width: 118,
+        overflow: 'truncate',
+      },
+      axisLine: { lineStyle: { color: sxVar('--sx-chart-axis-line-cyan-strong') } },
     },
     series: [{
       type: 'bar',
@@ -44,8 +54,8 @@ function buildOption(data) {
       itemStyle: {
         borderRadius: [0, 3, 3, 0],
         color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-          { offset: 0, color: 'rgba(34,211,238,0.7)' },
-          { offset: 1, color: 'rgba(250,204,21,0.85)' },
+          { offset: 0, color: sxVar('--sx-chart-bar-region-0') },
+          { offset: 1, color: sxVar('--sx-chart-bar-region-1') },
         ]),
       },
     }],

@@ -1,5 +1,8 @@
 <template>
-  <div class="cockpit-root">
+  <div
+    class="cockpit-root"
+    :class="{ 'cockpit-root--gold-era': activeTab === 'ops' || activeTab === 'smart' }"
+  >
     <!-- Tab 1: 智能驾驶舱（3D 地图 + 业务数据） -->
     <div v-if="activeTab === 'smart'" class="cockpit-shell">
       <div class="cockpit-shell__bg" aria-hidden="true" />
@@ -382,7 +385,7 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   padding: 10px 12px 12px;
-  color: #e2e8f0;
+  color: var(--sx-text-body);
   overflow: hidden;
 }
 
@@ -391,11 +394,7 @@ onUnmounted(() => {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 100% 80% at 50% -30%, rgba(56, 189, 248, 0.10), transparent 45%),
-    radial-gradient(ellipse 70% 50% at 100% 50%, rgba(234, 179, 8, 0.03), transparent 50%),
-    radial-gradient(ellipse 70% 50% at 0% 50%, rgba(34, 211, 238, 0.05), transparent 50%),
-    linear-gradient(180deg, #070b19 0%, #0c1225 38%, #070b19 100%);
+  background: var(--sx-cockpit-bg-stack);
 }
 
 .cockpit-shell__bg::after {
@@ -404,8 +403,8 @@ onUnmounted(() => {
   inset: 0;
   opacity: 0.25;
   background-image:
-    linear-gradient(rgba(34, 211, 238, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(34, 211, 238, 0.04) 1px, transparent 1px);
+    linear-gradient(var(--sx-grid-line-a) 1px, transparent 1px),
+    linear-gradient(90deg, var(--sx-grid-line-b) 1px, transparent 1px);
   background-size: 48px 48px;
 }
 
@@ -414,7 +413,13 @@ onUnmounted(() => {
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: linear-gradient(180deg, transparent 0%, rgba(34, 211, 238, 0.025) 48%, rgba(234, 179, 8, 0.015) 49%, transparent 52%);
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    var(--sx-scan-line) 48%,
+    var(--sx-scan-line) 49%,
+    transparent 52%
+  );
   background-size: 100% 240%;
   animation: cockpit-scan 10s linear infinite;
   opacity: 0.5;
@@ -444,7 +449,7 @@ onUnmounted(() => {
 .cockpit-top__tag {
   font-size: 10px;
   letter-spacing: 0.28em;
-  color: rgba(125, 211, 252, 0.6);
+  color: var(--sx-text-tag);
   text-transform: uppercase;
 }
 
@@ -454,8 +459,8 @@ onUnmounted(() => {
   height: 2px;
   width: min(72%, 200px);
   margin: 0 auto 8px;
-  background: linear-gradient(90deg, transparent, rgba(234, 179, 8, 0.8), rgba(34, 211, 238, 0.85), transparent);
-  box-shadow: 0 0 10px rgba(34, 211, 238, 0.4);
+  background: var(--sx-title-line-gradient);
+  box-shadow: 0 0 10px var(--sx-glow-cyan);
   border-radius: 2px;
 }
 
@@ -469,8 +474,8 @@ onUnmounted(() => {
   font-size: clamp(18px, 2.4vw, 26px);
   font-weight: 700;
   letter-spacing: 0.22em;
-  color: #f8fafc;
-  text-shadow: 0 0 18px rgba(34, 211, 238, 0.3), 0 0 36px rgba(234, 179, 8, 0.1);
+  color: var(--sx-text-bright);
+  text-shadow: 0 0 18px rgba(34, 211, 238, 0.32);
   margin: 0;
   line-height: 1.2;
 }
@@ -478,7 +483,7 @@ onUnmounted(() => {
 .cockpit-top__sub {
   margin: 6px 0 0;
   font-size: 12px;
-  color: rgba(148, 163, 184, 0.9);
+  color: var(--sx-text-muted);
   letter-spacing: 0.06em;
 }
 
@@ -488,7 +493,7 @@ onUnmounted(() => {
   font-family: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
   font-size: 14px;
   font-weight: 600;
-  color: #a5f3fc;
+  color: var(--sx-text-clock);
   text-shadow: 0 0 8px rgba(34, 211, 238, 0.45);
   letter-spacing: 0.04em;
 }
@@ -496,7 +501,7 @@ onUnmounted(() => {
 .cockpit-top__clock-label {
   font-size: 9px;
   letter-spacing: 0.35em;
-  color: rgba(234, 179, 8, 0.7);
+  color: var(--sx-warm-amber-muted);
 }
 
 .cockpit-shell__err {
@@ -509,9 +514,9 @@ onUnmounted(() => {
   padding: 8px 12px;
   margin-bottom: 6px;
   border-radius: 6px;
-  background: rgba(127, 29, 29, 0.4);
-  border: 1px solid rgba(248, 113, 113, 0.4);
-  color: #fecaca;
+  background: var(--sx-error-bg);
+  border: 1px solid var(--sx-error-border);
+  color: var(--sx-error-text);
   font-size: 13px;
 }
 
@@ -564,10 +569,10 @@ onUnmounted(() => {
   right: 18px;
   bottom: 52px;
   z-index: 20;
-  background: linear-gradient(180deg, rgba(30, 144, 255, 0.26), rgba(14, 116, 210, 0.32)) !important;
-  border: 1px solid rgba(96, 165, 250, 0.65) !important;
-  color: #e0f2fe !important;
-  box-shadow: 0 0 12px rgba(30, 144, 255, 0.35);
+  background: var(--sx-cockpit-float-btn-bg) !important;
+  border: 1px solid var(--sx-cockpit-float-btn-border) !important;
+  color: var(--sx-cockpit-float-btn-color) !important;
+  box-shadow: var(--sx-cockpit-float-btn-shadow);
 }
 
 .cockpit-tab-bar {
@@ -575,8 +580,8 @@ onUnmounted(() => {
   z-index: 10;
   flex-shrink: 0;
   padding: 0 12px;
-  background: linear-gradient(180deg, rgba(5, 10, 25, 0.6) 0%, rgba(5, 10, 25, 0.95) 100%);
-  border-top: 1px solid rgba(30, 144, 255, 0.2);
+  background: var(--sx-tab-bar-bg);
+  border-top: 1px solid var(--sx-tab-bar-border);
 }
 
 .cockpit-tab-bar__inner {
@@ -594,7 +599,7 @@ onUnmounted(() => {
   padding: 8px 16px;
   border: none;
   background: transparent;
-  color: rgba(140, 170, 220, 0.7);
+  color: var(--sx-text-tab);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -603,13 +608,13 @@ onUnmounted(() => {
 }
 
 .cockpit-tab-bar__item:hover {
-  color: #e8eef8;
+  color: var(--sx-text-title);
 }
 
 .cockpit-tab-bar__item--active {
-  color: #e8eef8;
-  border-bottom-color: #1e90ff;
-  background: linear-gradient(180deg, transparent 0%, rgba(30, 144, 255, 0.08) 100%);
+  color: var(--sx-text-title);
+  border-bottom-color: var(--sx-primary);
+  background: var(--sx-tab-active-underline);
 }
 
 .cockpit-tab-bar__item--active::after {
@@ -619,7 +624,7 @@ onUnmounted(() => {
   left: 15%;
   right: 15%;
   height: 2px;
-  background: #1e90ff;
+  background: var(--sx-primary);
   box-shadow: 0 0 10px rgba(30, 144, 255, 0.6), 0 0 20px rgba(30, 144, 255, 0.3);
   border-radius: 2px;
 }
@@ -631,6 +636,93 @@ onUnmounted(() => {
 .cockpit-tab-bar__label {
   font-weight: 500;
   letter-spacing: 0.05em;
+}
+
+/* 运营指挥台 / 智能驾驶舱：恢复青金双色氛围（物联 Tab 仍为冷色 Token） */
+.cockpit-root--gold-era .cockpit-shell {
+  color: #e2e8f0;
+}
+.cockpit-root--gold-era .cockpit-shell__bg {
+  background:
+    radial-gradient(ellipse 100% 80% at 50% -30%, rgba(56, 189, 248, 0.1), transparent 45%),
+    radial-gradient(ellipse 70% 50% at 100% 50%, rgba(234, 179, 8, 0.06), transparent 50%),
+    radial-gradient(ellipse 70% 50% at 0% 50%, rgba(34, 211, 238, 0.05), transparent 50%),
+    linear-gradient(180deg, #070b19 0%, #0c1225 38%, #070b19 100%);
+}
+.cockpit-root--gold-era .cockpit-shell__bg::after {
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.04) 1px, transparent 1px);
+}
+.cockpit-root--gold-era .cockpit-shell__scan {
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(34, 211, 238, 0.025) 48%,
+    rgba(234, 179, 8, 0.018) 49%,
+    transparent 52%
+  );
+}
+.cockpit-root--gold-era .cockpit-top__tag {
+  color: rgba(125, 211, 252, 0.6);
+}
+.cockpit-root--gold-era .cockpit-top__title-line {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(234, 179, 8, 0.85),
+    rgba(34, 211, 238, 0.88),
+    rgba(59, 130, 246, 0.55),
+    transparent
+  );
+  box-shadow:
+    0 0 10px rgba(34, 211, 238, 0.4),
+    0 0 14px rgba(234, 179, 8, 0.12);
+}
+.cockpit-root--gold-era .cockpit-top__title {
+  color: #f8fafc;
+  text-shadow:
+    0 0 18px rgba(34, 211, 238, 0.32),
+    0 0 28px rgba(234, 179, 8, 0.14);
+}
+.cockpit-root--gold-era .cockpit-top__sub {
+  color: rgba(148, 163, 184, 0.9);
+}
+.cockpit-root--gold-era .cockpit-top__clock {
+  color: #a5f3fc;
+  text-shadow: 0 0 8px rgba(34, 211, 238, 0.45);
+}
+.cockpit-root--gold-era .cockpit-top__clock-label {
+  color: rgba(234, 179, 8, 0.72);
+}
+.cockpit-root--gold-era .cockpit-tab-bar__item--active {
+  border-bottom-color: rgba(250, 204, 21, 0.55);
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(234, 179, 8, 0.07) 40%,
+    rgba(30, 144, 255, 0.06) 100%
+  );
+}
+.cockpit-root--gold-era .cockpit-tab-bar__item--active::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(234, 179, 8, 0.95) 35%,
+    rgba(56, 189, 248, 0.95) 65%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 10px rgba(234, 179, 8, 0.4),
+    0 0 14px rgba(30, 144, 255, 0.35);
+}
+.cockpit-root--gold-era .cockpit-float-back {
+  background: linear-gradient(180deg, rgba(234, 179, 8, 0.18), rgba(30, 144, 255, 0.28)) !important;
+  border: 1px solid rgba(234, 179, 8, 0.45) !important;
+  color: #ecfeff !important;
+  box-shadow:
+    0 0 12px rgba(234, 179, 8, 0.2),
+    0 0 14px rgba(30, 144, 255, 0.25);
 }
 
 @media (max-width: 900px) {

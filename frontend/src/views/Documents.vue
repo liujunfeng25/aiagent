@@ -668,23 +668,28 @@ async function doCompare() {
   margin: 0 0 8px 0;
   font-size: 20px;
   font-weight: 600;
-  color: #1a1a2e;
+  color: var(--sx-text-title);
+  letter-spacing: 0.03em;
+  text-shadow: var(--sx-text-shadow-readable);
 }
 .page-desc {
   margin: 0;
   font-size: 14px;
-  color: #64748b;
+  color: var(--sx-text-readable-muted);
+  line-height: 1.6;
+  max-width: 72ch;
+  text-shadow: var(--sx-text-shadow-strong);
 }
 .main-tabs :deep(.el-tabs__header) {
   margin-bottom: 20px;
 }
 .upload-card {
-  border-radius: 8px;
+  border-radius: var(--sx-radius-panel);
 }
 .upload-hint {
   margin-top: 8px;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--sx-text-readable-dim);
 }
 .btn-recognize {
   margin-top: 12px;
@@ -696,42 +701,45 @@ async function doCompare() {
   max-width: 100%;
   max-height: 320px;
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--sx-glass-border);
 }
 .result-placeholder {
-  color: #64748b;
+  color: var(--sx-text-readable-muted);
   padding: 48px 24px;
   text-align: center;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
-  border-radius: 8px;
+  background: rgba(12, 18, 40, 0.72);
+  border: 1px dashed var(--sx-edge-cyan-mid);
+  border-radius: var(--sx-radius-panel);
   font-size: 14px;
+  line-height: 1.55;
+  text-shadow: var(--sx-text-shadow-readable);
 }
 .db-compare-panel {
   padding: 16px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  background: rgba(10, 17, 38, 0.82);
+  border: 1px solid var(--sx-glass-border);
+  border-radius: var(--sx-radius-panel);
   min-height: 120px;
+  backdrop-filter: blur(10px);
 }
 .db-compare-title {
   margin: 0 0 8px 0;
   font-size: 16px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--sx-text-bright);
 }
 .db-compare-desc {
   margin: 0 0 12px 0;
   font-size: 13px;
-  color: #64748b;
-  line-height: 1.5;
+  color: var(--sx-text-readable-muted);
+  line-height: 1.55;
 }
 .db-compare-form :deep(.el-form-item) {
   margin-bottom: 12px;
 }
 .opt-table-hint {
   float: right;
-  color: #94a3b8;
+  color: var(--sx-text-dim);
   font-size: 12px;
   margin-left: 8px;
 }
@@ -744,30 +752,30 @@ async function doCompare() {
 .db-diff-label {
   font-size: 13px;
   font-weight: 600;
-  color: #334155;
+  color: var(--sx-text-body);
   margin-bottom: 8px;
 }
 .db-only-line {
   margin: 6px 0 0 0;
   font-size: 13px;
-  color: #475569;
+  color: var(--sx-text-readable-muted);
   line-height: 1.5;
 }
 .result-full {
   margin-top: 8px;
   padding-top: 20px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--sx-edge-cyan-mid);
 }
 .kv-list {
   display: flex;
   flex-wrap: wrap;
   gap: 12px 24px;
   font-size: 14px;
-  color: #334155;
+  color: var(--sx-text-body);
   margin-bottom: 16px;
 }
 .kv-item strong {
-  color: #1e293b;
+  color: var(--sx-text-bright);
   margin-right: 4px;
 }
 .table-scroll-wrap {
@@ -781,42 +789,46 @@ async function doCompare() {
   min-width: max-content;
 }
 .cell-handwriting {
-  color: #b91c1c;
+  color: #fecaca;
   font-weight: 700;
-  background: rgba(220, 38, 38, 0.08);
+  background: rgba(127, 29, 29, 0.45);
   padding: 2px 6px;
   border-radius: 6px;
 }
 .compare-result h4 {
   font-size: 14px;
-  color: #606266;
+  color: var(--sx-text-readable-muted);
   margin-bottom: 8px;
+  font-weight: 600;
 }
 .tip {
-  color: #606266;
+  color: var(--sx-text-readable-muted);
   margin-bottom: 16px;
   font-size: 13px;
+  line-height: 1.55;
 }
 .compare-card {
   padding: 12px;
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
-  background: #fafafa;
+  border: 1px solid var(--sx-glass-border);
+  border-radius: var(--sx-radius-panel);
+  background: rgba(10, 17, 38, 0.75);
+  backdrop-filter: blur(8px);
 }
 .compare-card h4 {
   margin-bottom: 8px;
   font-size: 14px;
+  color: var(--sx-text-title);
 }
 .mini-summary {
   margin-top: 8px;
   font-size: 12px;
-  color: #909399;
+  color: var(--sx-text-readable-dim);
 }
 .progress-text,
 .progress-inline {
   margin-top: 8px;
   font-size: 13px;
-  color: #409eff;
+  color: var(--sx-cyan-light);
 }
 .compare-result {
   margin-top: 20px;

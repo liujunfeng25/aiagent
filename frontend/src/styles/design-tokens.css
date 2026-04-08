@@ -1,0 +1,158 @@
+/**
+ * 食迅易联 · 设计 Token（全站单一真相）
+ * 登录页审美延伸：深空海军底 + 电青蓝光 + 轻玻璃面
+ */
+:root {
+  /* —— 景深 —— */
+  --sx-bg-deep: #0a0e14;
+  --sx-bg-navy-900: #070b19;
+  --sx-bg-navy-800: #0c1225;
+  --sx-app-gradient: linear-gradient(165deg, #172554 0%, #1e3a5f 42%, #152042 100%);
+
+  /* —— 电青 / 蓝（主氛围光） —— */
+  --sx-cyan: #22d3ee;
+  --sx-cyan-light: #67e8f9;
+  --sx-blue-sky: #38bdf8;
+  --sx-blue-deep: #2563eb;
+  --sx-primary: #1e90ff;
+
+  --sx-edge-cyan: rgba(34, 211, 238, 0.25);
+  --sx-edge-cyan-mid: rgba(34, 211, 238, 0.15);
+  --sx-edge-cyan-strong: rgba(34, 211, 238, 0.8);
+  --sx-glow-cyan: rgba(56, 189, 248, 0.4);
+  --sx-glow-cyan-soft: rgba(34, 211, 238, 0.05);
+  --sx-grid-line-a: rgba(34, 211, 238, 0.05);
+  --sx-grid-line-b: rgba(34, 211, 238, 0.04);
+  --sx-scan-line: rgba(34, 211, 238, 0.025);
+
+  /* —— 暖色：仅稀疏语义点缀（忌大面积金条） —— */
+  --sx-warm-amber: rgba(245, 158, 11, 0.85);
+  --sx-warm-amber-muted: rgba(234, 179, 8, 0.55);
+  --sx-warm-glow-faint: rgba(234, 179, 8, 0.035);
+  --sx-corner-gold-soft: rgba(250, 204, 21, 0.45);
+
+  --sx-cockpit-bg-stack:
+    radial-gradient(ellipse 100% 80% at 50% -30%, rgba(56, 189, 248, 0.1), transparent 45%),
+    radial-gradient(ellipse 70% 50% at 100% 50%, var(--sx-warm-glow-faint), transparent 50%),
+    radial-gradient(ellipse 70% 50% at 0% 50%, rgba(34, 211, 238, 0.05), transparent 50%),
+    linear-gradient(180deg, var(--sx-bg-navy-900) 0%, var(--sx-bg-navy-800) 38%, var(--sx-bg-navy-900) 100%);
+
+  /* —— 文案 —— */
+  --sx-text-primary: #f1f5f9;
+  --sx-text-bright: #f8fafc;
+  --sx-text-title: #e8eef8;
+  --sx-text-body: #e2e8f0;
+  --sx-text-muted: rgba(148, 163, 184, 0.9);
+  --sx-text-dim: rgba(148, 163, 184, 0.6);
+  --sx-text-tag: rgba(125, 211, 252, 0.6);
+  --sx-text-clock: #a5f3fc;
+  --sx-text-tab: rgba(140, 170, 220, 0.7);
+
+  /* —— 面板 / 玻璃 —— */
+  --sx-panel-fill: linear-gradient(
+    165deg,
+    rgba(10, 15, 35, 0.94) 0%,
+    rgba(10, 15, 35, 0.78) 50%,
+    rgba(8, 47, 73, 0.25) 100%
+  );
+  --sx-panel-head-fill: linear-gradient(90deg, rgba(34, 211, 238, 0.08) 0%, transparent 60%);
+  --sx-panel-shadow: 0 0 20px rgba(34, 211, 238, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --sx-radius-panel: 12px;
+  --sx-radius-cockpit-tile: 2px;
+  --sx-glass-page-header: linear-gradient(120deg, rgba(8, 19, 46, 0.85), rgba(7, 28, 58, 0.68));
+  --sx-glass-border: rgba(30, 144, 255, 0.28);
+  --sx-metric-bg: rgba(8, 17, 38, 0.62);
+  --sx-inset-glow-header: inset 0 0 18px rgba(30, 144, 255, 0.1);
+
+  /* —— 标题装饰条（以青蓝为主，无大块金黄） —— */
+  --sx-title-line-gradient: linear-gradient(
+    90deg,
+    transparent,
+    rgba(56, 189, 248, 0.35),
+    rgba(103, 232, 249, 0.88),
+    rgba(59, 130, 246, 0.72),
+    transparent
+  );
+
+  /* —— 壳层（侧栏 / 顶栏 / 主区） —— */
+  --sx-sidebar-bg: linear-gradient(180deg, rgba(2, 10, 30, 0.92), rgba(1, 21, 53, 0.96));
+  --sx-sidebar-border: rgba(30, 144, 255, 0.24);
+  --sx-header-bg: linear-gradient(90deg, rgba(7, 18, 43, 0.9), rgba(8, 27, 58, 0.85));
+  --sx-main-radial: rgba(56, 189, 248, 0.09);
+  --sx-main-gradient: linear-gradient(180deg, rgba(30, 58, 90, 0.22) 0%, rgba(15, 23, 42, 0.35) 100%);
+  /** 主内容区遮罩：压住 TechParticleBg，避免细线/粒子与字「抢对比」 */
+  --sx-main-scrim: linear-gradient(
+    180deg,
+    rgba(11, 16, 36, 0.88) 0%,
+    rgba(15, 23, 42, 0.84) 45%,
+    rgba(12, 18, 38, 0.9) 100%
+  );
+  /** 全屏粒子层可见度（与 scrim 配套，宁可略淡也不要糊字） */
+  --sx-tech-bg-opacity: 0.38;
+  /** 业务页卡片 / 表格外壳（实色 + backdrop 模糊，适配 el-card --el-card-bg-color） */
+  --sx-content-card-bg: rgba(12, 18, 40, 0.9);
+  /** 印在装饰底上的说明字：比 muted 略亮，满足 WCAG 观感 */
+  --sx-text-readable-muted: rgba(218, 226, 239, 0.98);
+  --sx-text-readable-dim: rgba(196, 210, 228, 0.92);
+  /** 表格表头字（须明显亮于单元格灰字） */
+  --sx-text-table-header: #e8eef8;
+  --sx-text-table-cell: #f1f5f9;
+  --sx-text-datetime: #e0f2fe;
+  /** 印在复杂底上的轻微描边，提升笔画与背景分离度 */
+  --sx-text-shadow-readable: 0 1px 2px rgba(0, 0, 0, 0.55);
+  --sx-text-shadow-strong: 0 1px 3px rgba(0, 0, 0, 0.75);
+  --sx-menu-hover: linear-gradient(90deg, rgba(30, 144, 255, 0.24), rgba(34, 211, 238, 0.14));
+  --sx-logo-dot: radial-gradient(circle at 30% 30%, #67e8f9 0%, #1e90ff 65%, #0a66c2 100%);
+
+  /* —— 驾驶舱 Tab 条 —— */
+  --sx-tab-bar-bg: linear-gradient(180deg, rgba(5, 10, 25, 0.6) 0%, rgba(5, 10, 25, 0.95) 100%);
+  --sx-tab-bar-border: rgba(30, 144, 255, 0.2);
+  --sx-tab-active-underline: linear-gradient(180deg, transparent 0%, rgba(30, 144, 255, 0.08) 100%);
+
+  /* —— 驾驶舱浮层按钮 —— */
+  --sx-cockpit-float-btn-bg: linear-gradient(180deg, rgba(30, 144, 255, 0.26), rgba(14, 116, 210, 0.32));
+  --sx-cockpit-float-btn-border: rgba(96, 165, 250, 0.65);
+  --sx-cockpit-float-btn-color: #e0f2fe;
+  --sx-cockpit-float-btn-shadow: 0 0 12px rgba(30, 144, 255, 0.35);
+
+  /* —— 内联错误条 —— */
+  --sx-error-bg: rgba(127, 29, 29, 0.4);
+  --sx-error-border: rgba(248, 113, 113, 0.4);
+  --sx-error-text: #fecaca;
+
+  /* —— ECharts（脚本中用 sxVar('--sx-chart-*') 读取，与 CSS 单一真相对齐） —— */
+  --sx-chart-tooltip-bg: rgba(2, 6, 23, 0.92);
+  --sx-chart-border-cyan: rgba(34, 211, 238, 0.3);
+  --sx-chart-text-body: #e2e8f0;
+  --sx-chart-axis-muted: rgba(148, 163, 184, 0.7);
+  --sx-chart-split-cyan: rgba(34, 211, 238, 0.06);
+  --sx-chart-split-cyan-mid: rgba(34, 211, 238, 0.08);
+  --sx-chart-axis-line-cyan: rgba(34, 211, 238, 0.12);
+  --sx-chart-axis-line-cyan-strong: rgba(34, 211, 238, 0.15);
+  --sx-chart-line-primary: #38bdf8;
+  --sx-chart-line-point-border: #0a0f23;
+  --sx-chart-area-cyan-0: rgba(56, 189, 248, 0.35);
+  --sx-chart-area-cyan-1: rgba(56, 189, 248, 0.02);
+  --sx-chart-bar-grad-0: rgba(56, 189, 248, 0.75);
+  --sx-chart-bar-grad-1: rgba(37, 99, 235, 0.88);
+  --sx-chart-bar-region-0: rgba(34, 211, 238, 0.7);
+  --sx-chart-bar-region-1: rgba(37, 99, 235, 0.85);
+
+  /* —— 语义色（业务状态） —— */
+  --sx-success: #34d399;
+  --sx-warning: #f59e0b;
+  --sx-danger: #f87171;
+  --sx-accent-purple: #7c3aed;
+
+  /* —— 兼容旧变量（逐步迁移到 --sx-*） —— */
+  --ai-color-primary: var(--sx-primary);
+  --ai-color-secondary: var(--sx-cyan);
+  --ai-color-accent: var(--sx-accent-purple);
+  --ai-color-success: var(--sx-success);
+  --ai-color-warning: var(--sx-warning);
+  --ai-color-danger: var(--sx-danger);
+  --ai-bg-panel: rgba(30, 41, 72, 0.82);
+  --ai-border-glow: var(--sx-glow-cyan);
+  --ai-text-primary: var(--sx-text-primary);
+  --ai-text-secondary: rgba(203, 213, 225, 0.92);
+}

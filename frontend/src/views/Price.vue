@@ -15,7 +15,14 @@
 </script>
 
 <style scoped>
-.page-title { margin-bottom: 16px; font-size: 20px; }
+.page-title {
+  margin-bottom: 16px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--sx-text-title);
+  letter-spacing: 0.03em;
+  text-shadow: var(--sx-text-shadow-readable);
+}
 .iframe-card { padding: 0; overflow: hidden; }
 .price-iframe {
   display: block;

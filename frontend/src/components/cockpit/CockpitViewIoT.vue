@@ -80,7 +80,7 @@ defineProps({
   box-sizing: border-box;
   height: 100%;
   padding: 10px 12px 12px;
-  color: #e8eef8;
+  color: var(--sx-text-title);
   overflow: hidden;
 }
 
@@ -89,11 +89,7 @@ defineProps({
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 100% 80% at 50% -30%, rgba(30, 144, 255, 0.12), transparent 45%),
-    radial-gradient(ellipse 70% 50% at 100% 50%, rgba(0, 200, 255, 0.04), transparent 50%),
-    radial-gradient(ellipse 70% 50% at 0% 50%, rgba(30, 144, 255, 0.06), transparent 50%),
-    linear-gradient(180deg, #050d2e 0%, #081838 38%, #050d2e 100%);
+  background: var(--sx-cockpit-bg-stack);
 }
 
 .iot-shell__bg::after {
@@ -102,8 +98,8 @@ defineProps({
   inset: 0;
   opacity: 0.18;
   background-image:
-    linear-gradient(rgba(30, 144, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(30, 144, 255, 0.04) 1px, transparent 1px);
+    linear-gradient(var(--sx-grid-line-a) 1px, transparent 1px),
+    linear-gradient(90deg, var(--sx-grid-line-b) 1px, transparent 1px);
   background-size: 48px 48px;
 }
 
@@ -112,7 +108,13 @@ defineProps({
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: linear-gradient(180deg, transparent 0%, rgba(30, 144, 255, 0.03) 48%, rgba(0, 200, 255, 0.02) 49%, transparent 52%);
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    var(--sx-scan-line) 48%,
+    var(--sx-scan-line) 49%,
+    transparent 52%
+  );
   background-size: 100% 240%;
   animation: iot-scan 10s linear infinite;
   opacity: 0.5;
@@ -152,8 +154,8 @@ defineProps({
   height: 2px;
   width: min(80%, 280px);
   margin: 0 auto 6px;
-  background: linear-gradient(90deg, transparent, rgba(30, 144, 255, 0.7), rgba(0, 200, 255, 0.8), rgba(30, 144, 255, 0.7), transparent);
-  box-shadow: 0 0 12px rgba(30, 144, 255, 0.5);
+  background: var(--sx-title-line-gradient);
+  box-shadow: 0 0 12px var(--sx-glow-cyan);
   border-radius: 2px;
 }
 
@@ -167,8 +169,8 @@ defineProps({
   font-size: clamp(18px, 2.4vw, 26px);
   font-weight: 700;
   letter-spacing: 0.22em;
-  color: #f0f4ff;
-  text-shadow: 0 0 20px rgba(30, 144, 255, 0.5), 0 0 40px rgba(30, 144, 255, 0.2);
+  color: var(--sx-text-bright);
+  text-shadow: 0 0 20px var(--sx-glow-cyan-soft), 0 0 36px rgba(30, 144, 255, 0.15);
   margin: 0;
   line-height: 1.2;
 }
@@ -177,8 +179,8 @@ defineProps({
   font-family: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
   font-weight: 600;
-  color: #a5c4f8;
-  text-shadow: 0 0 8px rgba(30, 144, 255, 0.4);
+  color: var(--sx-text-clock);
+  text-shadow: 0 0 8px var(--sx-glow-cyan);
   letter-spacing: 0.04em;
 }
 
@@ -188,9 +190,9 @@ defineProps({
   padding: 8px 12px;
   margin-bottom: 6px;
   border-radius: 6px;
-  background: rgba(80, 20, 20, 0.4);
-  border: 1px solid rgba(248, 113, 113, 0.4);
-  color: #fecaca;
+  background: var(--sx-error-bg);
+  border: 1px solid var(--sx-error-border);
+  color: var(--sx-error-text);
   font-size: 13px;
 }
 

@@ -155,6 +155,26 @@ onMounted(loadDatasets)
 </script>
 
 <style scoped>
-.page-title { margin-bottom: 16px; font-size: 20px; }
+.page-title {
+  margin-bottom: 16px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--sx-text-title);
+  letter-spacing: 0.03em;
+  text-shadow: var(--sx-text-shadow-readable);
+}
 .tip-card { margin-bottom: 16px; }
+.tip-card :deep(.el-alert) {
+  margin-top: 12px;
+}
+.tip-card :deep(.el-alert:first-of-type) {
+  margin-top: 0;
+}
+.tip-card :deep(a) {
+  color: var(--sx-primary);
+  font-weight: 500;
+}
+.tip-card :deep(a:hover) {
+  color: var(--sx-cyan-light);
+}
 </style>

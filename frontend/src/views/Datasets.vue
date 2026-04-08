@@ -22,7 +22,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="row_count" label="行数" width="100" />
-        <el-table-column prop="created_at" label="创建时间" />
+        <el-table-column prop="created_at" label="创建时间">
+          <template #default="{ row }">
+            <span class="cell-datetime">{{ row.created_at }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="220">
           <template #default="{ row }">
             <el-button size="small" @click="preview(row)">预览</el-button>
@@ -177,7 +181,14 @@ onMounted(load)
 </script>
 
 <style scoped>
-.page-title { margin-bottom: 12px; font-size: 20px; }
+.page-title {
+  margin-bottom: 12px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--sx-text-title);
+  letter-spacing: 0.03em;
+  text-shadow: var(--sx-text-shadow-readable);
+}
 .page-hint { margin-bottom: 16px; }
 .toolbar { margin-bottom: 16px; }
 </style>

@@ -8,6 +8,7 @@
 import { ref, watch, onMounted, onUnmounted, shallowRef } from 'vue'
 import * as echarts from 'echarts'
 import CockpitPanel from './CockpitPanel.vue'
+import { sxVar } from '../../utils/sxCss.js'
 
 const props = defineProps({
   data: { type: Array, default: () => [] },
@@ -18,12 +19,13 @@ const chart = shallowRef(null)
 
 function buildOption(data) {
   return {
-    grid: { top: 20, right: 14, bottom: 24, left: 52 },
+    grid: { top: 18, right: 14, bottom: 32, left: 52 },
     tooltip: {
       trigger: 'axis',
-      backgroundColor: 'rgba(2,6,23,0.92)',
-      borderColor: 'rgba(250,204,21,0.3)',
-      textStyle: { color: '#e2e8f0', fontSize: 12 },
+      backgroundColor: sxVar('--sx-chart-tooltip-bg'),
+      borderColor: 'rgba(250, 204, 21, 0.35)',
+      borderWidth: 1,
+      textStyle: { color: '#f8fafc', fontSize: 13 },
       formatter(params) {
         const p = params[0]
         return `${p.name}<br/>GMV: ¥${Number(p.value).toLocaleString()}`
@@ -33,25 +35,25 @@ function buildOption(data) {
       type: 'category',
       data: data.map((r) => r.day),
       boundaryGap: false,
-      axisLabel: { color: 'rgba(148,163,184,0.7)', fontSize: 9, rotate: 35 },
-      axisLine: { lineStyle: { color: 'rgba(250,204,21,0.12)' } },
+      axisLabel: { color: sxVar('--sx-chart-axis-muted'), fontSize: 9, rotate: 35 },
+      axisLine: { lineStyle: { color: sxVar('--sx-chart-axis-line-cyan') } },
     },
     yAxis: {
       type: 'value',
-      splitLine: { lineStyle: { color: 'rgba(250,204,21,0.06)' } },
-      axisLabel: { color: 'rgba(148,163,184,0.7)', fontSize: 10, formatter: (v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v },
+      splitLine: { lineStyle: { color: sxVar('--sx-chart-split-cyan') } },
+      axisLabel: { color: sxVar('--sx-chart-axis-muted'), fontSize: 10, formatter: (v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v },
     },
     series: [{
       type: 'line',
       smooth: true,
       symbol: 'circle',
       symbolSize: 5,
-      lineStyle: { color: '#f0c040', width: 2 },
-      itemStyle: { color: '#f0c040', borderColor: '#0a0f23', borderWidth: 2 },
+      lineStyle: { color: '#fbbf24', width: 2 },
+      itemStyle: { color: '#fbbf24', borderColor: sxVar('--sx-chart-line-point-border'), borderWidth: 2 },
       areaStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(240,192,64,0.35)' },
-          { offset: 1, color: 'rgba(240,192,64,0.02)' },
+          { offset: 0, color: 'rgba(251, 191, 36, 0.38)' },
+          { offset: 1, color: 'rgba(251, 191, 36, 0.02)' },
         ]),
       },
       data: data.map((r) => r.gmv),

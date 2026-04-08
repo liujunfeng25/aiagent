@@ -144,19 +144,34 @@ onMounted(load)
 </script>
 
 <style scoped>
-.page-title { margin-bottom: 12px; font-size: 20px; }
+.page-title {
+  margin-bottom: 12px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--sx-text-title);
+  letter-spacing: 0.03em;
+  text-shadow: var(--sx-text-shadow-readable);
+}
 .card-hint {
-  color: #606266;
+  color: var(--sx-text-readable-muted);
   font-size: 14px;
   margin-bottom: 16px;
-  line-height: 1.6;
+  line-height: 1.65;
+  max-width: 85ch;
+  text-shadow: var(--sx-text-shadow-strong);
 }
-.card-hint a { color: #409eff; }
+.card-hint :deep(strong) {
+  color: var(--sx-text-body);
+}
+.card-hint a { color: var(--sx-primary); font-weight: 500; }
+.card-hint a:hover { color: var(--sx-cyan-light); }
 .card-hint code {
   font-size: 0.9em;
-  padding: 0 4px;
-  background: #f4f4f5;
+  padding: 2px 6px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid var(--sx-edge-cyan-mid);
   border-radius: 4px;
+  color: var(--sx-cyan-light);
 }
 .card-header-row {
   display: flex;
@@ -168,24 +183,25 @@ onMounted(load)
 .col-hint-icon {
   margin-left: 4px;
   cursor: help;
-  color: #909399;
+  color: var(--sx-text-readable-dim);
   font-size: 12px;
 }
 .name-cell { margin-right: 8px; }
 .custom-tag { vertical-align: middle; }
 .ds-link,
 .task-link {
-  color: #409eff;
+  color: var(--sx-primary);
   text-decoration: none;
 }
 .ds-link:hover,
 .task-link:hover {
+  color: var(--sx-cyan-light);
   text-decoration: underline;
 }
 .dialog-tip {
   margin: 0 0 12px;
   font-size: 13px;
-  color: #909399;
+  color: var(--sx-text-readable-muted);
   line-height: 1.5;
 }
 </style>

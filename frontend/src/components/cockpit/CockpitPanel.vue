@@ -23,6 +23,7 @@ defineProps({
 </script>
 
 <style scoped>
+/* 青金角标 + 深空玻璃：与驾驶舱「上一版」视觉一致（运营 / 智能沿用；物联为 PanelBlue） */
 .cp {
   position: relative;
   display: flex;
@@ -55,7 +56,7 @@ defineProps({
   gap: 8px;
   padding: 8px 12px;
   border-bottom: 1px solid rgba(34, 211, 238, 0.15);
-  background: linear-gradient(90deg, rgba(34, 211, 238, 0.08) 0%, transparent 60%);
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.08) 0%, rgba(234, 179, 8, 0.04) 52%, transparent 72%);
   flex-shrink: 0;
 }
 
@@ -87,5 +88,7 @@ defineProps({
   min-height: 0;
   padding: 8px 10px;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 </style>

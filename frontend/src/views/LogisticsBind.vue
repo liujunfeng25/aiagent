@@ -205,13 +205,25 @@ async function detachCam(row) {
 <style scoped>
 .logistics-bind { padding: 20px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
+/* 浅色信息条：须单独设深字色，避免继承主区 EP 的浅色变量（浅字 + 浅底） */
 .vehicle-info {
-  background: #f8f8f8;
+  background: #f1f5f9;
   padding: 12px 16px;
-  border-radius: 6px;
+  border-radius: 8px;
   margin-bottom: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.5;
 }
-.vehicle-info span { margin-right: 24px; }
+.vehicle-info span {
+  margin-right: 24px;
+  color: #334155;
+}
+.vehicle-info b {
+  color: #0f172a;
+  font-weight: 700;
+}
 .section { margin-bottom: 24px; }
 .section-title {
   font-weight: 600;

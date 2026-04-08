@@ -8,6 +8,7 @@
 import { ref, watch, onMounted, onUnmounted, shallowRef } from 'vue'
 import * as echarts from 'echarts'
 import CockpitPanel from './CockpitPanel.vue'
+import { sxVar } from '../../utils/sxCss.js'
 
 const props = defineProps({
   data: { type: Array, default: () => [] },
@@ -22,9 +23,10 @@ function buildOption(data) {
     grid: { top: 8, right: 16, bottom: 18, left: 90 },
     tooltip: {
       trigger: 'axis',
-      backgroundColor: 'rgba(2,6,23,0.92)',
-      borderColor: 'rgba(250,204,21,0.3)',
-      textStyle: { color: '#e2e8f0', fontSize: 12 },
+      backgroundColor: sxVar('--sx-chart-tooltip-bg'),
+      borderColor: 'rgba(250, 204, 21, 0.35)',
+      borderWidth: 1,
+      textStyle: { color: '#f8fafc', fontSize: 13 },
       formatter(params) {
         const p = params[0]
         return `${p.name}<br/>GMV: ¥${Number(p.value).toLocaleString()}`
@@ -48,8 +50,9 @@ function buildOption(data) {
       itemStyle: {
         borderRadius: [0, 3, 3, 0],
         color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-          { offset: 0, color: 'rgba(250,204,21,0.65)' },
-          { offset: 1, color: 'rgba(34,211,238,0.85)' },
+          { offset: 0, color: 'rgba(34, 211, 238, 0.9)' },
+          { offset: 0.5, color: 'rgba(56, 189, 248, 0.82)' },
+          { offset: 1, color: 'rgba(250, 204, 21, 0.95)' },
         ]),
       },
     }],

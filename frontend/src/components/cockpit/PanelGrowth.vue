@@ -52,13 +52,13 @@ const items = computed(() => {
 }
 
 .growth-item__value.up {
-  color: #22c55e;
-  text-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
+  color: var(--sx-success);
+  text-shadow: 0 0 10px rgba(52, 211, 153, 0.4);
 }
 
 .growth-item__value.down {
-  color: #ef4444;
-  text-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+  color: var(--sx-danger);
+  text-shadow: 0 0 10px rgba(248, 113, 113, 0.4);
 }
 
 .growth-item__arrow {
@@ -68,7 +68,7 @@ const items = computed(() => {
 
 .growth-item__label {
   font-size: 11px;
-  color: rgba(148, 163, 184, 0.8);
+  color: var(--sx-text-muted);
   margin-top: 3px;
 }
 </style>

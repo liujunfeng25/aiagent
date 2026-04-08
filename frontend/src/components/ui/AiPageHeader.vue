@@ -26,20 +26,23 @@ defineProps({
   padding: 14px 16px;
   margin-bottom: 14px;
   border-radius: 12px;
-  border: 1px solid rgba(30, 144, 255, 0.28);
-  background: linear-gradient(120deg, rgba(8, 19, 46, 0.85), rgba(7, 28, 58, 0.68));
-  box-shadow: inset 0 0 18px rgba(30, 144, 255, 0.1);
+  border: 1px solid var(--sx-glass-border);
+  background: var(--sx-glass-page-header);
+  box-shadow: var(--sx-inset-glow-header);
 }
 .ai-page-header__title {
   margin: 0;
   font-size: 22px;
   letter-spacing: 0.04em;
-  color: #e8eef8;
+  color: var(--sx-text-title);
+  text-shadow: var(--sx-text-shadow-readable);
 }
 .ai-page-header__sub {
   margin: 6px 0 0;
-  color: rgba(148, 163, 184, 0.9);
+  color: var(--sx-text-readable-muted);
   font-size: 13px;
+  text-shadow: var(--sx-text-shadow-strong);
+  max-width: 72ch;
 }
 .ai-page-header__actions {
   display: flex;
