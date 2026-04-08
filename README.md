@@ -20,6 +20,16 @@ ai-agent/
 
 ### 1. 后端
 
+**新电脑 / 新 clone：** `backend/.env` 默认不进入 Git。请复制模板并填写：
+
+```bash
+cd backend
+cp .env.example .env
+# 编辑 .env：至少配置 INSIGHTS_MYSQL_*（数据洞察），否则接口会返回「未配置业务库连接」
+```
+
+也可用旧机器上的 `backend/.env` 整文件拷贝过来（注意保密）。
+
 ```bash
 cd backend
 pip install -r requirements.txt

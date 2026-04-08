@@ -13,6 +13,9 @@ build/
 # Envs
 .env
 .env.*
+# 允许提交环境变量模板（供新 clone 的机器复制为 .env）
+!.env.example
+!**/.env.example
 # 本地配置副本（可选，与 config.py 同级变量名对齐）
 backend/config_副本.py
 venv/
