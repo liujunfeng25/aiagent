@@ -29,11 +29,11 @@ frontend/dist/
 frontend/.vite/
 
 # Project runtime data
-# 【临时】已取消对 backend/data 的忽略（可提交 ai_agent.db、缓存目录等）。换机 pull 后若要恢复为不跟库：
-#   1. 在本段上方加一行：backend/data/
-#   2. 删除本段三条注释
-#   3. 执行：git rm -r --cached backend/data && git add .gitignore && git commit -m "chore: stop tracking backend/data"
-# 注意：documents 下可能有上传票据，勿推公共仓库。
+backend/data/*
+!backend/data/datasets/
+!backend/data/datasets/**
+!backend/data/models/
+!backend/data/models/**
 backend/*.db
 backend/preset_vegetable_model/
 
