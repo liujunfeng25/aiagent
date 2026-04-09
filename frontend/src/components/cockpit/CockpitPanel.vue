@@ -6,8 +6,16 @@
     <span class="cp__corner cp__corner--br" aria-hidden="true" />
     <div v-if="title" class="cp__head">
       <i class="cp__head-dot" aria-hidden="true" />
-      <span class="cp__title">{{ title }}</span>
-      <span v-if="titleEn" class="cp__title-en">{{ titleEn }}</span>
+      <div class="cp__head-text">
+        <div class="cp__head-titles">
+          <span class="cp__title">{{ title }}</span>
+          <span v-if="titleEn" class="cp__title-en">{{ titleEn }}</span>
+        </div>
+        <p v-if="hint" class="cp__hint">{{ hint }}</p>
+      </div>
+      <div class="cp__head-actions">
+        <slot name="titleActions" />
+      </div>
     </div>
     <div class="cp__body">
       <slot />
@@ -19,6 +27,8 @@
 defineProps({
   title: { type: String, default: '' },
   titleEn: { type: String, default: '' },
+  /** 标题下方一行说明（如统计区间） */
+  hint: { type: String, default: '' },
 })
 </script>
 
@@ -60,6 +70,30 @@ defineProps({
   flex-shrink: 0;
 }
 
+.cp__head-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cp__head-titles {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  row-gap: 2px;
+}
+
+.cp__head-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
 .cp__head-dot {
   width: 6px;
   height: 6px;
@@ -81,6 +115,17 @@ defineProps({
   letter-spacing: 0.18em;
   color: rgba(148, 163, 184, 0.6);
   text-transform: uppercase;
+}
+
+.cp__hint {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: rgba(148, 163, 184, 0.9);
+  letter-spacing: 0.03em;
+  font-weight: 400;
 }
 
 .cp__body {

@@ -1,12 +1,15 @@
-# 与 docker MySQL agent 库 DESCRIBE 结果对齐（orders / backorder / chart_xinfadi_price_summary）
+# 业务库 orders 等：字段名以实表为准（助手已在运行环境对 shixunwang.orders 执行 SHOW COLUMNS 校准）。
 # 库内全部表枚举：GET /api/insights/business/meta/tables
 # 说明文档：同目录 data_catalog.md
 
 ORDERS_TABLE = "orders"
-ORDERS_TIME_COL = "add_time"  # int unsigned UNIX 时间戳
+ORDERS_PK_COL = "id"
+ORDERS_SN_COL = "order_sn"
+ORDERS_TIME_COL = "add_time"  # int unsigned UNIX 时间戳，上的 MUL 索引
 ORDERS_AMOUNT_COL = "total_amount"
 ORDERS_MEMBER_COL = "member_id"
-ORDERS_MEMBER_NAME_COL = "member_realname"
+ORDERS_MEMBER_NAME_COL = "member_realname"  # varchar(100)
+ORDERS_MEMBER_LOGIN_COL = "member_name"  # varchar(20)，与 realname 并列展示用
 
 BACKORDER_TABLE = "backorder"
 BACKORDER_TIME_COL = "add_time"

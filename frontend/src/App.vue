@@ -7,7 +7,7 @@
         <div class="logo">
           <span class="logo__dot" />
           <div class="logo__text">
-            <strong>AI Agent</strong>
+            <strong>食迅易联</strong>
             <small>INTELLIGENCE PLATFORM</small>
           </div>
         </div>

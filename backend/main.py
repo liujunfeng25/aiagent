@@ -80,7 +80,7 @@ if frontend_dist.exists():
 
 
 @app.on_event("startup")
-def startup():
+async def startup():
     init_db()
     try:
         from app.database import SessionLocal
@@ -109,5 +109,11 @@ def startup():
         db.close()
         if n:
             print(f"[startup] 按数据集去重模型，已删除 {n} 条多余记录")
+    except Exception:
+        pass
+    try:
+        from app.services.live_gmv_poller import start_live_gmv_background
+
+        await start_live_gmv_background()
     except Exception:
         pass

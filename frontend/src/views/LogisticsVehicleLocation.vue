@@ -70,12 +70,24 @@
         <div class="history-toolbar sxw-hint">
           按本车在绑定页配置的北斗 macid / user_id 查询北斗定位历史轨迹（坐标已由服务端转为高德 GCJ-02）。
         </div>
-        <el-form :inline="true">
-          <el-form-item label="开始">
-            <el-date-picker v-model="hist.start" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" placeholder="开始" />
+        <el-form :inline="true" class="history-range-form">
+          <el-form-item label="开始时间">
+            <el-date-picker
+              v-model="hist.start"
+              type="datetime"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              placeholder="选择开始时间"
+              class="hist-dt-picker"
+            />
           </el-form-item>
-          <el-form-item label="结束">
-            <el-date-picker v-model="hist.end" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" placeholder="结束" />
+          <el-form-item label="结束时间">
+            <el-date-picker
+              v-model="hist.end"
+              type="datetime"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              placeholder="选择结束时间"
+              class="hist-dt-picker"
+            />
           </el-form-item>
           <el-form-item label="仅演示">
             <el-switch v-model="hist.forceDemo" />
@@ -682,9 +694,61 @@ function drawHist() {
 }
 .history-toolbar.sxw-hint {
   font-size: 12px;
-  color: #666;
+  color: #475569;
   line-height: 1.5;
   margin-bottom: 10px;
+}
+
+/* 历史轨迹：时间范围在全局暗色主题下对比度不足，此处强制浅色高对比 */
+.history-range-form {
+  background: #ffffff;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 0;
+}
+
+.loc-page :deep(.history-range-form .el-form-item) {
+  margin-bottom: 8px;
+  margin-right: 16px;
+}
+
+.loc-page :deep(.history-range-form .el-form-item__label) {
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.loc-page :deep(.history-range-form .hist-dt-picker) {
+  width: 208px;
+  max-width: 100%;
+}
+
+.loc-page :deep(.history-range-form .hist-dt-picker .el-input__wrapper) {
+  background-color: #f8fafc;
+  box-shadow: 0 0 0 1px #94a3b8 inset;
+}
+
+.loc-page :deep(.history-range-form .hist-dt-picker .el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px #64748b inset;
+}
+
+.loc-page :deep(.history-range-form .hist-dt-picker .el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #2563eb inset, 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.loc-page :deep(.history-range-form .hist-dt-picker .el-input__inner) {
+  color: #0f172a;
+  font-size: 13px;
+  -webkit-text-fill-color: #0f172a;
+}
+
+.loc-page :deep(.history-range-form .hist-dt-picker .el-input__prefix-inner .el-icon) {
+  color: #475569;
 }
 /* sxw .history-playback / .history-playback-extra */
 .history-playback {

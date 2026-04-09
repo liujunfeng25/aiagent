@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta, time
 from decimal import Decimal
 from typing import Any, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, WebSocket
 from zoneinfo import ZoneInfo
 
 import pymysql
@@ -418,6 +418,182 @@ def meta_tables():
     }
 
 
+@router.get("/today-intraday-gmv")
+def today_intraday_gmv():
+    """今日（上海时区）按 1 分钟桶聚合成交额；前端可做前缀和得到累计分时曲线。"""
+    cfg = _cfg_or_503()
+    day = datetime.now(_TZ).date()
+    t0 = _day_start_ts(day)
+    t1_day_end = _day_end_ts(day)
+    now_ts = int(datetime.now(_TZ).timestamp())
+    t1 = min(t1_day_end, now_ts)
+    ot, ta = S.ORDERS_TIME_COL, S.ORDERS_AMOUNT_COL
+    t0_sql = int(t0)
+    sql = f"""
+        SELECT ({t0_sql} + FLOOR((`{ot}` - {t0_sql}) / 60) * 60) AS minute_start,
+               COALESCE(SUM(`{ta}`), 0) AS bucket_gmv,
+               COUNT(*) AS order_count
+        FROM `{S.ORDERS_TABLE}`
+        WHERE `{ot}` >= %s AND `{ot}` <= %s
+        GROUP BY minute_start
+        ORDER BY minute_start
+    """
+    conn = _mysql_connect(cfg)
+    try:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, (t0, t1))
+                raw = [dict(r) for r in cur.fetchall()]
+        except pymysql.MySQLError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"业务库查询失败：`{S.ORDERS_TABLE}` — {e}",
+            ) from e
+    finally:
+        conn.close()
+
+    buckets = [
+        {
+            "minute_start": int(r.get("minute_start") or 0),
+            "bucket_gmv": float(r.get("bucket_gmv") or 0),
+            "order_count": int(r.get("order_count") or 0),
+        }
+        for r in raw
+    ]
+    return {
+        "date": day.isoformat(),
+        "day_start_ts": t0,
+        "now_ts": now_ts,
+        "query_end_ts": t1,
+        "buckets": buckets,
+    }
+
+
+_MAX_ORDERS_PER_MINUTE = 500
+
+
+@router.get("/today-intraday-minute-orders")
+def today_intraday_minute_orders(
+    minute_start: int = Query(
+        ...,
+        description="分钟桶起始 UNIX 时间戳，与 today-intraday-gmv 的 minute_start 一致",
+    ),
+):
+    """某分钟内订单明细（只读白名单字段），供运营台弹窗。"""
+    cfg = _cfg_or_503()
+    day = datetime.now(_TZ).date()
+    t0 = _day_start_ts(day)
+    t1_day_end = _day_end_ts(day)
+    now_ts = int(datetime.now(_TZ).timestamp())
+    t_cap = min(t1_day_end, now_ts)
+    t0_sql = int(t0)
+    aligned = t0_sql + ((int(minute_start) - t0_sql) // 60) * 60
+    if aligned < t0 or aligned > t_cap:
+        raise HTTPException(
+            400,
+            "minute_start 对应分钟桶不在今日可查范围内（或为未来时间）",
+        )
+    window_hi = aligned + 60
+    pk, osn, ot, ta = S.ORDERS_PK_COL, S.ORDERS_SN_COL, S.ORDERS_TIME_COL, S.ORDERS_AMOUNT_COL
+    mem, mreal, mlogin = (
+        S.ORDERS_MEMBER_COL,
+        S.ORDERS_MEMBER_NAME_COL,
+        S.ORDERS_MEMBER_LOGIN_COL,
+    )
+    conn = _mysql_connect(cfg)
+    try:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT COUNT(*) AS c
+                    FROM `{S.ORDERS_TABLE}`
+                    WHERE `{ot}` >= %s AND `{ot}` < %s
+                    """,
+                    (aligned, window_hi),
+                )
+                cnt_row = dict(cur.fetchone() or {})
+                total_count = int(cnt_row.get("c") or 0)
+                cur.execute(
+                    f"""
+                    SELECT `{osn}` AS order_sn, `{pk}` AS id, `{ot}` AS add_time,
+                           `{ta}` AS total_amount, `{mem}` AS member_id,
+                           `{mreal}` AS member_realname, `{mlogin}` AS member_login
+                    FROM `{S.ORDERS_TABLE}`
+                    WHERE `{ot}` >= %s AND `{ot}` < %s
+                    ORDER BY `{ot}` ASC, `{pk}` ASC
+                    LIMIT %s
+                    """,
+                    (aligned, window_hi, _MAX_ORDERS_PER_MINUTE),
+                )
+                raw = [dict(r) for r in cur.fetchall()]
+        except pymysql.MySQLError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"业务库查询失败：`{S.ORDERS_TABLE}` — {e}",
+            ) from e
+    finally:
+        conn.close()
+
+    orders = [_jsonable_row(r) for r in raw]
+    return {
+        "minute_start": aligned,
+        "minute_end_exclusive": window_hi,
+        "total_count": total_count,
+        "truncated": total_count > len(orders),
+        "orders": orders,
+    }
+
+
+@router.get("/order-line-items")
+def order_line_items(
+    order_id: int = Query(
+        ...,
+        description="订单主表主键，与分时明细接口返回的 id 一致",
+    ),
+):
+    """单笔订单的商品行明细（与 goods-top 同源解析明细表）。"""
+    cfg = _cfg_or_503()
+    otbl = S.ORDERS_TABLE
+    conn = _mysql_connect(cfg)
+    try:
+        spec = resolve_order_items_spec(conn, cfg.database, otbl)
+        if not spec:
+            return {
+                "order_id": order_id,
+                "rows": [],
+                "warning": (
+                    "未识别到可用的订单明细表。可设置环境变量 INSIGHTS_ORDER_ITEMS_TABLE 等，详见 data_catalog.md。"
+                ),
+            }
+        qty_expr = build_qty_sql("g", spec.qty_cols)
+        gn = spec.goods_name_col
+        gp = spec.price_col
+        join_fk = spec.items_order_fk
+        itbl = spec.items_table
+        sql = f"""
+            SELECT g.`{gn}` AS goods_name,
+                   ({qty_expr}) AS qty,
+                   ROUND(COALESCE(g.`{gp}`, 0) * ({qty_expr}), 4) AS line_amount
+            FROM `{itbl}` g
+            WHERE g.`{join_fk}` = %s
+            ORDER BY g.`{gn}` ASC
+            LIMIT 500
+        """
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, (order_id,))
+                raw = [_jsonable_row(dict(r)) for r in cur.fetchall()]
+        except pymysql.MySQLError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"业务库查询失败（订单明细 `{itbl}`）：{e}",
+            ) from e
+    finally:
+        conn.close()
+    return {"order_id": order_id, "rows": raw}
+
+
 @router.get("/kpi-summary")
 def kpi_summary(
     scope: Literal["range", "today"] = Query(
@@ -515,3 +691,11 @@ def orders_calendar_heatmap(
             for r in series
         ],
     }
+
+
+@router.websocket("/ws/live-gmv")
+async def ws_live_gmv(websocket: WebSocket):
+    """今日 GMV 推送：snapshot / batch / refresh_hint（服务端轮询 orders 增量，零 DDL）。"""
+    from app.services.live_gmv_poller import hub
+
+    await hub.handle(websocket)

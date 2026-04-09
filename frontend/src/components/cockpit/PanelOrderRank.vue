@@ -1,5 +1,5 @@
 <template>
-  <CockpitPanel title="订单排名" title-en="ORDER RANKING">
+  <CockpitPanel title="订单排名" title-en="ORDER RANKING" :hint="hint">
     <div ref="chartRef" class="rank-chart" />
   </CockpitPanel>
 </template>
@@ -12,6 +12,7 @@ import { sxVar } from '../../utils/sxCss.js'
 
 const props = defineProps({
   data: { type: Array, default: () => [] },
+  hint: { type: String, default: '' },
 })
 
 const chartRef = ref(null)

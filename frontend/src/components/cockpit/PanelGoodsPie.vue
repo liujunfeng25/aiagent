@@ -1,5 +1,5 @@
 <template>
-  <CockpitPanel title="单品分布" title-en="PRODUCT DISTRIBUTION">
+  <CockpitPanel title="单品分布" title-en="PRODUCT DISTRIBUTION" :hint="hint">
     <div ref="chartRef" class="goods-chart" />
   </CockpitPanel>
 </template>
@@ -11,6 +11,7 @@ import CockpitPanel from './CockpitPanel.vue'
 
 const props = defineProps({
   data: { type: Array, default: () => [] },
+  hint: { type: String, default: '' },
 })
 
 const chartRef = ref(null)

@@ -77,7 +77,7 @@
         </el-button>
       </div>
     </div>
-    <footer class="login-footer">Copyright © 北京食迅易联科技有限公司</footer>
+    <footer class="login-footer">Copyright © 北京食迅易联信息技术有限公司</footer>
   </div>
 </template>
 

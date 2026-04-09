@@ -35,6 +35,8 @@ services:
       - INSIGHTS_MYSQL_USER=script-wechat
       - INSIGHTS_MYSQL_PASSWORD=ShiXunCn.2015!)
       - INSIGHTS_MYSQL_DATABASE=shixunwang
+      # 今日 GMV WebSocket 轮询间隔（秒），零 DDL 增量读 orders
+      - INSIGHTS_LIVE_GMV_POLL_SEC=3
       # SXW 业务数据库（物流模块数据源）
       - SXW_MYSQL_HOST=1.92.102.228
       - SXW_MYSQL_PORT=3306

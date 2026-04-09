@@ -15,7 +15,7 @@
         <div class="cockpit-top__center">
           <div class="cockpit-top__title-line" />
           <h1 class="cockpit-top__title">智能驾驶舱</h1>
-          <p class="cockpit-top__sub">2D 态势地图演示点位为模拟数据 · 其余图表来自业务库</p>
+          <p class="cockpit-top__sub">{{ smartSubtitle }}</p>
           <div class="cockpit-top__title-line cockpit-top__title-line--short" />
         </div>
         <div class="cockpit-top__side cockpit-top__side--right">
@@ -46,13 +46,13 @@
           </CockpitPanel>
         </div>
         <div class="cockpit-grid__cell cockpit-grid__cell--r1c3">
-          <PanelOrderRank :data="orderRankData" />
+          <PanelOrderRank :data="orderRankData" :hint="smartRankGoodsHint" />
         </div>
         <div class="cockpit-grid__cell cockpit-grid__cell--r2c1">
           <PanelOrderTrend :data="orderTrendData" />
         </div>
         <div class="cockpit-grid__cell cockpit-grid__cell--r2c3">
-          <PanelGoodsPie :data="goodsData" />
+          <PanelGoodsPie :data="goodsData" :hint="smartRankGoodsHint" />
         </div>
         <div class="cockpit-grid__cell cockpit-grid__cell--r3c1">
           <PanelKpi :data="kpiLegacy" />
@@ -95,26 +95,34 @@
       </div>
 
       <div class="cockpit-grid cockpit-grid--ops">
-        <div class="cockpit-grid__cell cockpit-grid__cell--r1c1">
-          <PanelRegion :data="regionData" />
+        <div class="cockpit-grid__cell cockpit-grid__cell--ops-hero">
+          <PanelGmvIntraday
+            :series="gmvIntradaySeries"
+            :ticker-lines="gmvTickerLines"
+            :live-ws-connected="gmvWsConnected"
+            :axis-day-start-ts="gmvDayStartTs"
+            :axis-max-ts="gmvAxisMaxTs"
+            :live-today-patch="gmvLiveTodayPatch"
+          />
         </div>
-        <div class="cockpit-grid__cell cockpit-grid__cell--r1c2">
-          <PanelOrderTrend :data="orderTrendData" />
-        </div>
-        <div class="cockpit-grid__cell cockpit-grid__cell--r1c3">
+        <div class="cockpit-grid__cell cockpit-grid__cell--ops-rank">
           <PanelOrderRank :data="orderRankData" />
         </div>
-        <div class="cockpit-grid__cell cockpit-grid__cell--r2wide">
-          <PanelWeekdayProfile :data="orderTrendData" />
-        </div>
-        <div class="cockpit-grid__cell cockpit-grid__cell--r2side">
+        <div class="cockpit-grid__cell cockpit-grid__cell--ops-goods">
           <PanelGoodsPie :data="goodsData" />
         </div>
-        <div class="cockpit-grid__cell cockpit-grid__cell--r3trend">
-          <PanelTrendLine :data="orderTrendData" />
+        <div class="cockpit-grid__cell cockpit-grid__cell--ops-intraday">
+          <PanelWeekdayProfile
+            :raw-buckets="gmvRawBuckets"
+            :axis-day-start-ts="gmvDayStartTs"
+          />
         </div>
-        <div class="cockpit-grid__cell cockpit-grid__cell--r3kpi">
-          <PanelKpiReal :summary-range="kpiRange" :summary-today="kpiToday" />
+        <div class="cockpit-grid__cell cockpit-grid__cell--ops-kpi">
+          <PanelOpsDataFreshness
+            :live-ws-connected="gmvWsConnected"
+            :last-intraday-fetched-at="gmvLastIntradayFetchedAt"
+            :last-live-push-at="gmvLastLivePushAt"
+          />
         </div>
       </div>
     </div>
@@ -165,13 +173,15 @@ import PanelOrderRank from '../components/cockpit/PanelOrderRank.vue'
 import PanelOrderTrend from '../components/cockpit/PanelOrderTrend.vue'
 import PanelGoodsPie from '../components/cockpit/PanelGoodsPie.vue'
 import PanelTrendLine from '../components/cockpit/PanelTrendLine.vue'
+import PanelGmvIntraday from '../components/cockpit/PanelGmvIntraday.vue'
 import PanelWeekdayProfile from '../components/cockpit/PanelWeekdayProfile.vue'
-import PanelKpiReal from '../components/cockpit/PanelKpiReal.vue'
+import PanelOpsDataFreshness from '../components/cockpit/PanelOpsDataFreshness.vue'
 import PanelKpi from '../components/cockpit/PanelKpi.vue'
 import PanelGrowth from '../components/cockpit/PanelGrowth.vue'
 import CockpitPanel from '../components/cockpit/CockpitPanel.vue'
 import CockpitBeijingMap from '../components/cockpit/CockpitBeijingMap.vue'
 import CockpitViewIoT from '../components/cockpit/CockpitViewIoT.vue'
+import { useCockpitLiveGmv } from '../composables/useCockpitLiveGmv.js'
 import { generateMockVehiclesInBeijing } from '../mock/cockpitVehicles.js'
 import {
   mockDeviceStatus,
@@ -251,11 +261,24 @@ function tickClock() {
 }
 
 const opsSubtitle = computed(() => {
+  return '订单与客户数据来自业务库 · 统计区间 今日'
+})
+
+const smartSubtitle = computed(() => {
   const r = kpiRange.value
   if (r?.start_date && r?.end_date) {
-    return `订单与客户数据来自业务库 · 统计区间 ${r.start_date} ~ ${r.end_date}`
+    return `2D 态势地图演示点位为模拟数据 · 其余图表来自业务库 · 统计区间 ${r.start_date} ~ ${r.end_date}（上海时区）`
   }
-  return '订单与客户数据来自业务库 · 加载成功后显示统计区间'
+  return '2D 态势地图演示点位为模拟数据 · 其余图表来自业务库 · 加载成功后显示统计区间与上海时区说明'
+})
+
+/** 智能驾驶舱：订单排名 / 单品分布 的统计区间（与接口 start/end 一致） */
+const smartRankGoodsHint = computed(() => {
+  const r = kpiRange.value
+  if (r?.start_date && r?.end_date) {
+    return `排名统计区间：${r.start_date} ~ ${r.end_date}（上海时区）`
+  }
+  return ''
 })
 
 function syncKpiLegacy(kr, kt) {
@@ -308,40 +331,81 @@ async function safeFetchJson(url) {
   }
 }
 
+function todayDateStr() {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 async function loadOpsData() {
   loadErrorOps.value = ''
-  const [daily, members, goods, region, kr, kt] = await Promise.all([
-    safeFetchJson(`${API_BASE}/orders-daily`),
-    safeFetchJson(`${API_BASE}/orders-top-members`),
-    safeFetchJson(`${API_BASE}/goods-top`),
-    safeFetchJson(`${API_BASE}/region-distribution`),
-    safeFetchJson(`${API_BASE}/kpi-summary?scope=range`),
-    safeFetchJson(`${API_BASE}/kpi-summary?scope=today`),
-  ])
+  const today = todayDateStr()
+  const isOps = activeTab.value === 'ops'
 
-  orderTrendData.value = daily.ok && Array.isArray(daily.data?.series) ? daily.data.series : []
+  const fetches = [
+    safeFetchJson(`${API_BASE}/orders-top-members${isOps ? `?start_date=${today}&end_date=${today}` : ''}`),
+    safeFetchJson(`${API_BASE}/goods-top${isOps ? `?start_date=${today}&end_date=${today}` : ''}`),
+    safeFetchJson(`${API_BASE}/kpi-summary?scope=today`),
+  ]
+  if (!isOps) {
+    fetches.push(
+      safeFetchJson(`${API_BASE}/orders-daily`),
+      safeFetchJson(`${API_BASE}/region-distribution`),
+      safeFetchJson(`${API_BASE}/kpi-summary?scope=range`),
+    )
+  }
+
+  const results = await Promise.all(fetches)
+  const [members, goods, kt] = results
+
   orderRankData.value = members.ok && Array.isArray(members.data?.rows) ? members.data.rows : []
   goodsData.value = goods.ok && Array.isArray(goods.data?.rows) ? goods.data.rows : []
-  regionData.value = region.ok && Array.isArray(region.data?.rows) ? region.data.rows : []
-  kpiRange.value = kr.ok && kr.data?.scope === 'range' ? kr.data : null
   kpiToday.value = kt.ok && kt.data?.scope === 'today' ? kt.data : null
 
   const errParts = []
-  if (!daily.ok) errParts.push(`订单趋势：${daily.error}`)
   if (!members.ok) errParts.push(`会员排名：${members.error}`)
   if (!goods.ok) errParts.push(`单品分布：${goods.error}`)
   else if (goods.data?.warning) errParts.push(`单品：${goods.data.warning}`)
-  if (!region.ok) errParts.push(`区域分布：${region.error}`)
-  if (!kr.ok) errParts.push(`区间 KPI：${kr.error}`)
   if (!kt.ok) errParts.push(`今日 KPI：${kt.error}`)
+
+  if (!isOps) {
+    const [daily, region, kr] = [results[3], results[4], results[5]]
+    orderTrendData.value = daily.ok && Array.isArray(daily.data?.series) ? daily.data.series : []
+    regionData.value = region.ok && Array.isArray(region.data?.rows) ? region.data.rows : []
+    kpiRange.value = kr.ok && kr.data?.scope === 'range' ? kr.data : null
+    if (!daily.ok) errParts.push(`订单趋势：${daily.error}`)
+    if (!region.ok) errParts.push(`区域分布：${region.error}`)
+    if (!kr.ok) errParts.push(`区间 KPI：${kr.error}`)
+    syncKpiLegacy(kr, kt)
+  } else {
+    syncKpiLegacy(null, kt)
+  }
+
   loadErrorOps.value = errParts.join(' ')
-  syncKpiLegacy(kr, kt)
 }
+
+const opsLiveEnabled = computed(() => activeTab.value === 'ops')
+const {
+  cumulativeSeries: gmvIntradaySeries,
+  liveTodayPatch: gmvLiveTodayPatch,
+  tickerLines: gmvTickerLines,
+  wsConnected: gmvWsConnected,
+  gmvDayStartTs,
+  gmvAxisMaxTs,
+  rawBuckets: gmvRawBuckets,
+  lastIntradayFetchedAt: gmvLastIntradayFetchedAt,
+  lastLivePushAt: gmvLastLivePushAt,
+} = useCockpitLiveGmv(opsLiveEnabled, {
+  onChartsRefresh: loadOpsData,
+  refreshDebounceMs: 8000,
+})
 
 function onTabClick(key) {
   activeTab.value = key
-  if ((key === 'ops' || key === 'smart') && loadErrorOps.value) {
-    loadOpsData()
+  if (key === 'ops' || key === 'smart') {
+    void loadOpsData()
   }
 }
 
@@ -538,7 +602,7 @@ onUnmounted(() => {
 
 .cockpit-grid--ops {
   grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr 0.88fr;
+  grid-template-rows: 1fr 1fr 0.7fr;
 }
 
 .cockpit-grid__cell {
@@ -563,6 +627,12 @@ onUnmounted(() => {
 .cockpit-grid__cell--r3c3 { grid-column: 3; grid-row: 3; }
 .cockpit-grid__cell--r3trend { grid-column: 1; grid-row: 3; }
 .cockpit-grid__cell--r3kpi { grid-column: 2 / 4; grid-row: 3; }
+
+.cockpit-grid__cell--ops-hero { grid-column: 1 / 3; grid-row: 1 / 3; }
+.cockpit-grid__cell--ops-rank { grid-column: 3; grid-row: 1; }
+.cockpit-grid__cell--ops-goods { grid-column: 3; grid-row: 2; }
+.cockpit-grid__cell--ops-intraday { grid-column: 1; grid-row: 3; }
+.cockpit-grid__cell--ops-kpi { grid-column: 2 / 4; grid-row: 3; }
 
 .cockpit-float-back {
   position: absolute;
@@ -747,7 +817,12 @@ onUnmounted(() => {
   .cockpit-grid__cell--r3c2,
   .cockpit-grid__cell--r3c3,
   .cockpit-grid__cell--r3trend,
-  .cockpit-grid__cell--r3kpi {
+  .cockpit-grid__cell--r3kpi,
+  .cockpit-grid__cell--ops-hero,
+  .cockpit-grid__cell--ops-rank,
+  .cockpit-grid__cell--ops-goods,
+  .cockpit-grid__cell--ops-intraday,
+  .cockpit-grid__cell--ops-kpi {
     grid-column: 1;
     grid-row: auto;
     min-height: 200px;
