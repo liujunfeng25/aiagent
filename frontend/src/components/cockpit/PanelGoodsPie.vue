@@ -8,6 +8,7 @@
 import { ref, watch, onMounted, onUnmounted, shallowRef } from 'vue'
 import * as echarts from 'echarts'
 import CockpitPanel from './CockpitPanel.vue'
+import { sxTooltip, sxAxisX, sxAxisY, sxGrid, sxGlow, sxAnimation } from '../../utils/echartTheme.js'
 
 const props = defineProps({
   data: { type: Array, default: () => [] },
@@ -18,9 +19,9 @@ const chartRef = ref(null)
 const chart = shallowRef(null)
 
 const COLORS = [
-  '#22d3ee', '#ff6b6b', '#a78bfa', '#facc15',
-  '#34d399', '#fb7185', '#60a5fa', '#f97316',
-  '#e879f9', '#84cc16', '#2dd4bf', '#f472b6',
+  '#56c8d8', '#e06b75', '#9b7fd4', '#d4b856',
+  '#4db89a', '#d46a7e', '#5b9bd5', '#cf7a3a',
+  '#c275d4', '#7ab33e', '#42b5a8', '#c96d9a',
 ]
 
 function buildOption(data) {
@@ -32,19 +33,11 @@ function buildOption(data) {
   const amounts = rows.map((r) => Number(r.total_amount || 0))
 
   return {
-    grid: {
-      left: 4,
-      right: 70,
-      top: 12,
-      bottom: 4,
-      containLabel: true,
-    },
-    tooltip: {
+    ...sxAnimation,
+    grid: sxGrid({ left: 4, right: 70, top: 12, bottom: 4, containLabel: true }),
+    tooltip: sxTooltip({
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
-      backgroundColor: 'rgba(2,6,23,0.92)',
-      borderColor: 'rgba(34,211,238,0.3)',
-      textStyle: { color: '#e2e8f0', fontSize: 12 },
       formatter(params) {
         const p = params[0]
         const i = p.dataIndex
@@ -54,15 +47,15 @@ function buildOption(data) {
         const qStr = qty != null ? `<br/>数量: ${Number(qty).toLocaleString()}` : ''
         return `${name}<br/>金额: ¥${Number(amt).toLocaleString()}${qStr}`
       },
-    },
+    }),
     xAxis: {
+      ...sxAxisY({
+        splitLine: { lineStyle: { color: 'rgba(34,211,238,0.06)' } },
+        axisLabel: {
+          formatter: (v) => (v >= 10000 ? `${(v / 10000).toFixed(1)}万` : v),
+        },
+      }),
       type: 'value',
-      splitLine: { lineStyle: { color: 'rgba(34,211,238,0.06)' } },
-      axisLabel: {
-        color: 'rgba(148,163,184,0.72)',
-        fontSize: 10,
-        formatter: (v) => (v >= 10000 ? `${(v / 10000).toFixed(1)}万` : v),
-      },
     },
     yAxis: {
       type: 'category',
@@ -72,12 +65,14 @@ function buildOption(data) {
       axisTick: { show: false },
       axisLabel: {
         color: 'rgba(203,213,225,0.92)',
-        fontSize: 9,
+        fontSize: 10,
         lineHeight: 14,
         width: 108,
         overflow: 'truncate',
         ellipsis: '…',
         margin: 6,
+        textShadowBlur: 4,
+        textShadowColor: 'rgba(0,0,0,0.5)',
       },
     },
     series: [{
@@ -88,14 +83,17 @@ function buildOption(data) {
         itemStyle: {
           color: COLORS[i % COLORS.length],
           borderRadius: [0, 4, 4, 0],
+          ...sxGlow(COLORS[i % COLORS.length] + '66', 4),
         },
       })),
       barMaxWidth: 22,
       label: {
         show: true,
         position: 'right',
-        color: 'rgba(226,232,240,0.88)',
-        fontSize: 9,
+        color: 'rgba(226,232,240,0.92)',
+        fontSize: 10,
+        textShadowBlur: 4,
+        textShadowColor: 'rgba(0,0,0,0.5)',
         formatter(p) {
           const n = p.value
           return n >= 10000 ? `${(n / 10000).toFixed(1)}万` : `${Math.round(n)}`

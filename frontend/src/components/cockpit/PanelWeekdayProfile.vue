@@ -8,13 +8,11 @@
 import { ref, watch, onMounted, onUnmounted, shallowRef } from 'vue'
 import * as echarts from 'echarts'
 import CockpitPanel from './CockpitPanel.vue'
+import { sxTooltip, sxAxisX, sxAxisY, sxGrid, sxGlow, sxAnimation } from '../../utils/echartTheme.js'
 
 const props = defineProps({
-  /** 原始分钟桶 [minute_start_ts_sec, bucket_gmv][] */
   rawBuckets: { type: Array, default: () => [] },
-  /** 今日零点 UNIX 秒 */
   axisDayStartTs: { type: Number, default: 0 },
-  /** 保留旧 prop 以免智能驾驶舱 tab 报错 */
   data: { type: Array, default: () => [] },
 })
 
@@ -43,33 +41,34 @@ function buildOption(buckets, t0) {
   const maxG = Math.max(...gmv, 1)
 
   return {
-    grid: { top: 18, right: 12, bottom: 8, left: 50 },
-    tooltip: {
+    ...sxAnimation,
+    grid: sxGrid({ top: 18, right: 12, bottom: 8, left: 50 }),
+    tooltip: sxTooltip({
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
-      backgroundColor: 'rgba(2,6,23,0.92)',
-      borderColor: 'rgba(250,204,21,0.35)',
-      textStyle: { color: '#e2e8f0', fontSize: 12 },
       formatter(params) {
         const p = params[0]
         const i = p.dataIndex
         return `${LABELS[i]}<br/>GMV: ¥${Number(gmv[i]).toLocaleString()}`
       },
-    },
+    }),
     xAxis: {
+      ...sxAxisX({
+        axisLine: {
+          lineStyle: {
+            color: 'rgba(250,204,21,0.2)',
+          },
+        },
+      }),
       type: 'category',
       data: LABELS,
-      axisLabel: { color: 'rgba(148,163,184,0.85)', fontSize: 10 },
-      axisLine: { lineStyle: { color: 'rgba(250,204,21,0.2)' } },
     },
     yAxis: {
+      ...sxAxisY({
+        splitLine: { lineStyle: { color: 'rgba(250,204,21,0.06)' } },
+        axisLabel: { formatter: (v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v) },
+      }),
       type: 'value',
-      splitLine: { lineStyle: { color: 'rgba(250,204,21,0.06)' } },
-      axisLabel: {
-        color: 'rgba(148,163,184,0.72)',
-        fontSize: 10,
-        formatter: (v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v),
-      },
     },
     series: [{
       type: 'bar',
@@ -79,14 +78,17 @@ function buildOption(buckets, t0) {
       data: gmv.map((c) => {
         const t = maxG > 0 ? c / maxG : 0
         const top = t > 0.85 ? '#fbbf24' : t > 0.5 ? '#f59e0b' : '#92400e'
+        const glowIntensity = t > 0.85 ? 8 : t > 0.5 ? 5 : 0
         return {
           value: c,
           itemStyle: {
             color: new echarts.graphic.LinearGradient(0, 1, 0, 0, [
-              { offset: 0, color: 'rgba(15,23,42,0.9)' },
+              { offset: 0, color: 'rgba(15,23,42,0.15)' },
+              { offset: 0.35, color: 'rgba(15,23,42,0.25)' },
               { offset: 1, color: top },
             ]),
-            borderRadius: [4, 4, 0, 0],
+            borderRadius: [3, 3, 0, 0],
+            ...(glowIntensity > 0 ? sxGlow('rgba(251,191,36,0.35)', glowIntensity) : {}),
           },
         }
       }),

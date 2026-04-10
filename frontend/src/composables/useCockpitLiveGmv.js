@@ -45,10 +45,47 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
   let axisTimer = null
   const MAX_TICKER = 24
   const rawBuckets = ref([])
+  const recentMinuteAmount = ref(0)
+  const recentMinuteCount = ref(0)
+  const recent5mAmount = ref(0)
+  const recent5mCount = ref(0)
   /** 成功 GET today-intraday-gmv 后的本地毫秒时间 */
   const lastIntradayFetchedAt = ref(null)
   /** 最近 WebSocket snapshot / batch（含汇总）到达时刻，毫秒 */
   const lastLivePushAt = ref(null)
+  /** 服务端 JSON ping（保活）到达时刻，毫秒；用于数据新鲜度心电条 */
+  const lastWsPingAt = ref(null)
+  /** WebSocket onopen 时刻（毫秒），用于首包 ping 前估算「下次心跳」倒计时 */
+  const wsOpenedAt = ref(null)
+  /** 仅用于计算近 5 分钟指标的滚动队列 */
+  let recentOrderQueue = []
+
+  function recalcRecentStats(nowSec = Math.floor(Date.now() / 1000)) {
+    const minTs = nowSec - 300
+    recentOrderQueue = recentOrderQueue.filter((r) => r.ts >= minTs)
+    recent5mCount.value = recentOrderQueue.length
+    recent5mAmount.value = recentOrderQueue.reduce((s, r) => s + (Number(r.amount) || 0), 0)
+
+    let latestMinute = 0
+    for (const r of recentOrderQueue) {
+      if (r.minuteStart > latestMinute) latestMinute = r.minuteStart
+    }
+    if (!latestMinute) {
+      recentMinuteCount.value = 0
+      recentMinuteAmount.value = 0
+      return
+    }
+    let c = 0
+    let amt = 0
+    for (const r of recentOrderQueue) {
+      if (r.minuteStart === latestMinute) {
+        c += 1
+        amt += Number(r.amount) || 0
+      }
+    }
+    recentMinuteCount.value = c
+    recentMinuteAmount.value = amt
+  }
 
   function bumpAxisToNow() {
     const t0 = gmvDayStartTs.value
@@ -56,6 +93,7 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
     const endDay = t0 + 86400 - 1
     const now = Math.floor(Date.now() / 1000)
     gmvAxisMaxTs.value = Math.min(now, endDay)
+    recalcRecentStats(now)
   }
 
   function applySnapshot(msg) {
@@ -109,8 +147,14 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
     for (let i = rows.length - 1; i >= 0; i -= 1) {
       const r = rows[i]
       lines.unshift(`${fmtClock(r.add_time)}  +¥${Number(r.amount).toLocaleString()}`)
+      recentOrderQueue.push({
+        ts: Number(r.add_time) || Math.floor(Date.now() / 1000),
+        minuteStart: Number(r.minute_start) || 0,
+        amount: Number(r.amount) || 0,
+      })
     }
     tickerLines.value = lines.slice(0, MAX_TICKER)
+    recalcRecentStats()
   }
 
   async function loadIntraday() {
@@ -125,6 +169,12 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
       bumpAxisToNow()
       const buckets = d.buckets || []
       rawBuckets.value = buckets.map((b) => [b.minute_start, Number(b.bucket_gmv) || 0])
+      const lastBucket = buckets.length ? buckets[buckets.length - 1] : null
+      recentMinuteAmount.value = Number(lastBucket?.bucket_gmv || 0)
+      recentMinuteCount.value = 0
+      recent5mAmount.value = 0
+      recent5mCount.value = 0
+      recentOrderQueue = []
       let cum = 0
       cumulativeSeries.value = buckets.map((b) => {
         cum += Number(b.bucket_gmv) || 0
@@ -171,6 +221,8 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
       ws = null
     }
     wsConnected.value = false
+    lastWsPingAt.value = null
+    wsOpenedAt.value = null
   }
 
   function connect() {
@@ -184,6 +236,7 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
     }
     ws.onopen = () => {
       wsConnected.value = true
+      wsOpenedAt.value = Date.now()
       reconnectAttempt = 0
       if (import.meta.env.DEV) {
         console.info('[live-gmv] WebSocket 已连接', u)
@@ -191,6 +244,8 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
     }
     ws.onclose = (ev) => {
       wsConnected.value = false
+      lastWsPingAt.value = null
+      wsOpenedAt.value = null
       ws = null
       if (import.meta.env.DEV && enabledRef.value) {
         console.warn('[live-gmv] WebSocket 已断开', ev.code, ev.reason || '')
@@ -208,7 +263,10 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
     ws.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data)
-        if (msg.type === 'ping') return
+        if (msg.type === 'ping') {
+          lastWsPingAt.value = Date.now()
+          return
+        }
         if (msg.type === 'snapshot') applySnapshot(msg)
         if (msg.type === 'batch') {
           applyBatch(msg)
@@ -241,6 +299,13 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
         gmvAxisMaxTs.value = 0
         lastIntradayFetchedAt.value = null
         lastLivePushAt.value = null
+        lastWsPingAt.value = null
+        wsOpenedAt.value = null
+        recentMinuteAmount.value = 0
+        recentMinuteCount.value = 0
+        recent5mAmount.value = 0
+        recent5mCount.value = 0
+        recentOrderQueue = []
       }
     },
     { immediate: true },
@@ -256,8 +321,14 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
     gmvDayStartTs,
     gmvAxisMaxTs,
     rawBuckets,
+    recentMinuteAmount,
+    recentMinuteCount,
+    recent5mAmount,
+    recent5mCount,
     lastIntradayFetchedAt,
     lastLivePushAt,
+    lastWsPingAt,
+    wsOpenedAt,
     loadIntraday,
   }
 }

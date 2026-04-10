@@ -36,19 +36,26 @@
       <div class="gmv-intra__main">
         <div ref="chartRef" class="gmv-intra__chart" />
         <aside class="gmv-intra__feed" aria-label="实时成交">
-          <div class="gmv-intra__feed-title">实时成交</div>
+          <div class="gmv-intra__feed-head">
+            <div class="gmv-intra__feed-title">实时成交</div>
+            <div class="gmv-intra__feed-kpi">
+              <span>近1分钟 {{ props.recentMinuteCount }} 笔</span>
+              <strong>+¥{{ Number(props.recentMinuteAmount || 0).toLocaleString() }}</strong>
+            </div>
+          </div>
           <div
-            v-if="tickerLines.length"
+            v-if="parsedTickerLines.length"
             class="gmv-intra__ticker"
             aria-live="polite"
           >
             <div
-              v-for="(line, i) in tickerLines"
+              v-for="(line, i) in parsedTickerLines"
               :key="i"
               class="gmv-intra__tick"
               :class="{ 'gmv-intra__tick--flash': i === 0 }"
             >
-              {{ line }}
+              <span class="gmv-intra__tick-time">{{ line.time }}</span>
+              <span class="gmv-intra__tick-amount">{{ line.amount }}</span>
             </div>
           </div>
           <p v-else class="gmv-intra__feed-empty">等待推送…</p>
@@ -136,6 +143,7 @@ import * as echarts from 'echarts'
 import { ElMessage } from 'element-plus'
 import CockpitPanel from './CockpitPanel.vue'
 import { sxVar } from '../../utils/sxCss.js'
+import { sxTooltip, sxAxisX, sxAxisY, sxGrid, sxGlow, sxAnimation } from '../../utils/echartTheme.js'
 
 const props = defineProps({
   /** [minute_ts_sec, cumulative_gmv] */
@@ -147,6 +155,8 @@ const props = defineProps({
   /** 时间轴 max（秒），一般为 min(now, 当日末) */
   axisMaxTs: { type: Number, default: 0 },
   liveTodayPatch: { type: Object, default: null },
+  recentMinuteAmount: { type: Number, default: 0 },
+  recentMinuteCount: { type: Number, default: 0 },
 })
 
 function fmtMoney(n) {
@@ -163,6 +173,7 @@ const heroData = computed(() => {
     avgTicket: p.avg_ticket != null ? `¥${p.avg_ticket}` : '--',
   }
 })
+const parsedTickerLines = computed(() => props.tickerLines.map((line) => parseTickerLine(line)))
 
 const chartRef = ref(null)
 const chart = shallowRef(null)
@@ -344,14 +355,27 @@ function pad2(n) {
   return n < 10 ? `0${n}` : `${n}`
 }
 
+function parseTickerLine(line) {
+  const text = String(line || '').trim()
+  const m = text.match(/^(\d{2}:\d{2}:\d{2})\s+(.*)$/)
+  if (m) return { time: m[1], amount: m[2] || '--' }
+  return { time: '--:--:--', amount: text || '--' }
+}
+
 /**
  * 阶梯图数据：左侧强制从当日 0 点累计 0 起，右侧延伸至 axisMax（持平）。
  * pairs: [unix_sec, cumulative]
  */
 function buildStepSeriesData(pairs) {
-  const raw = Array.isArray(pairs)
-    ? [...pairs].sort((a, b) => Number(a[0]) - Number(b[0]))
-    : []
+  const raw = Array.isArray(pairs) ? [...pairs] : []
+  let ordered = true
+  for (let i = 1; i < raw.length; i += 1) {
+    if (Number(raw[i][0]) < Number(raw[i - 1][0])) {
+      ordered = false
+      break
+    }
+  }
+  if (!ordered) raw.sort((a, b) => Number(a[0]) - Number(b[0]))
   const t0 = props.axisDayStartTs
   const t1 = props.axisMaxTs
   const out = []
@@ -395,15 +419,13 @@ function buildOption(pairs) {
   const t1 = props.axisMaxTs
   const xMin = t0 > 0 ? t0 * 1000 : undefined
   const xMax = t1 > 0 && t0 > 0 ? t1 * 1000 : undefined
+  const lastPoint = seriesData.length ? seriesData[seriesData.length - 1] : null
 
   return {
-    grid: { top: 22, right: 14, bottom: 48, left: 56 },
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: sxVar('--sx-chart-tooltip-bg'),
-      borderColor: 'rgba(250, 204, 21, 0.35)',
-      borderWidth: 1,
-      textStyle: { color: '#f8fafc', fontSize: 13 },
+    ...sxAnimation,
+    animationDurationUpdate: 240,
+    grid: sxGrid({ top: 22, bottom: 48, left: 56 }),
+    tooltip: sxTooltip({
       formatter(params) {
         const p = params[0]
         const v = p.value
@@ -414,52 +436,79 @@ function buildOption(pairs) {
           : ''
         return `${tlabel}<br/>累计 GMV: ¥${Number(y).toLocaleString()}<br/><span style="opacity:.85;font-size:11px">点击数据点查看该分钟订单</span>`
       },
-    },
+    }),
     xAxis: {
+      ...sxAxisX({
+        axisLabel: {
+          fontSize: 10,
+          rotate: 22,
+          hideOverlap: false,
+          margin: 12,
+          formatter: (v) => {
+            const d = new Date(v)
+            const hh = pad2(d.getHours())
+            const mm = pad2(d.getMinutes())
+            if (mm === '00') return hh === '00' ? `${hh}:${mm}` : `${hh}:00`
+            return `${hh}:${mm}`
+          },
+        },
+      }),
       type: 'time',
       min: xMin,
       max: xMax,
       boundaryGap: false,
       splitNumber: 12,
-      axisLabel: {
-        color: 'rgba(226, 232, 240, 0.88)',
-        fontSize: 10,
-        rotate: 22,
-        hideOverlap: false,
-        margin: 12,
-        formatter: (v) => {
-          const d = new Date(v)
-          const hh = pad2(d.getHours())
-          const mm = pad2(d.getMinutes())
-          if (mm === '00') return hh === '00' ? `${hh}:${mm}` : `${hh}:00`
-          return `${hh}:${mm}`
-        },
-      },
-      axisLine: { lineStyle: { color: sxVar('--sx-chart-axis-line-cyan') } },
     },
     yAxis: {
+      ...sxAxisY({
+        axisLabel: { formatter: (v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v) },
+      }),
       type: 'value',
-      splitLine: { lineStyle: { color: sxVar('--sx-chart-split-cyan') } },
-      axisLabel: {
-        color: sxVar('--sx-chart-axis-muted'),
-        fontSize: 10,
-        formatter: (v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v),
-      },
     },
     series: [{
       type: 'line',
       step: 'end',
+      showSymbol: false,
       symbol: 'circle',
-      symbolSize: 5,
-      lineStyle: { color: '#fbbf24', width: 2 },
-      itemStyle: { color: '#fbbf24', borderColor: sxVar('--sx-chart-line-point-border'), borderWidth: 1 },
+      symbolSize: 0,
+      lineStyle: {
+        color: '#fbbf24',
+        width: 2.2,
+        ...sxGlow('rgba(251,191,36,0.32)', 6),
+      },
+      itemStyle: {
+        color: '#fbbf24',
+        borderColor: sxVar('--sx-chart-line-point-border'),
+        borderWidth: 1,
+        shadowBlur: 0,
+        shadowColor: 'transparent',
+      },
       areaStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(251, 191, 36, 0.35)' },
+          { offset: 0, color: 'rgba(251, 191, 36, 0.45)' },
+          { offset: 0.4, color: 'rgba(34, 211, 238, 0.10)' },
           { offset: 1, color: 'rgba(251, 191, 36, 0.02)' },
         ]),
       },
       data: seriesData,
+      emphasis: {
+        focus: 'series',
+        itemStyle: { shadowBlur: 6, shadowColor: 'rgba(251,191,36,0.32)' },
+      },
+    }, {
+      type: 'scatter',
+      symbol: 'circle',
+      symbolSize: 8,
+      data: lastPoint ? [lastPoint] : [],
+      silent: true,
+      itemStyle: {
+        color: '#fde047',
+        shadowBlur: 10,
+        shadowColor: 'rgba(251,191,36,0.48)',
+      },
+      z: 5,
+      animationDuration: 180,
+      animationDurationUpdate: 180,
     }],
   }
 }
@@ -487,7 +536,14 @@ onUnmounted(() => {
 watch(
   () => [props.series, props.axisDayStartTs, props.axisMaxTs],
   () => {
-    chart.value?.setOption(buildOption(props.series), true)
+    const opt = buildOption(props.series)
+    chart.value?.setOption(
+      {
+        xAxis: { min: opt.xAxis.min, max: opt.xAxis.max },
+        series: opt.series,
+      },
+      { notMerge: false, lazyUpdate: true },
+    )
     bindChartInteraction()
   },
   { deep: true },
@@ -577,16 +633,16 @@ watch(
 .gmv-intra__hint {
   flex-shrink: 0;
   margin: 0;
-  font-size: 10px;
+  font-size: 12px;
   color: rgba(226, 232, 240, 0.78);
-  line-height: 1.45;
+  line-height: 1.6;
 }
 .gmv-intra__ws-pill {
   display: inline-block;
   margin-right: 8px;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.06em;
   vertical-align: middle;
   background: rgba(71, 85, 105, 0.45);
@@ -616,7 +672,7 @@ watch(
   min-height: 0;
   display: flex;
   flex-direction: row;
-  gap: 10px;
+  gap: 12px;
   align-items: stretch;
 }
 .gmv-intra__chart {
@@ -627,40 +683,76 @@ watch(
   cursor: crosshair;
 }
 .gmv-intra__feed {
-  flex: 0 0 min(28%, 260px);
-  min-width: 200px;
+  flex: 0 0 clamp(250px, 31%, 360px);
+  min-width: 250px;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid rgba(250, 204, 21, 0.18);
   background: rgba(15, 23, 42, 0.5);
   overflow: hidden;
 }
+.gmv-intra__feed-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px 7px;
+  border-bottom: 1px solid rgba(250, 204, 21, 0.12);
+}
 .gmv-intra__feed-title {
   flex-shrink: 0;
-  padding: 6px 10px;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: rgba(250, 204, 21, 0.75);
-  border-bottom: 1px solid rgba(250, 204, 21, 0.12);
+}
+.gmv-intra__feed-kpi {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(226, 232, 240, 0.78);
+}
+.gmv-intra__feed-kpi strong {
+  color: #fde68a;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.22);
 }
 .gmv-intra__ticker {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px 10px;
+  padding: 10px 12px;
   font-family: ui-monospace, monospace;
-  font-size: 10px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.75;
   color: rgba(254, 240, 138, 0.92);
+}
+.gmv-intra__tick {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  letter-spacing: 0.01em;
+}
+.gmv-intra__tick-time {
+  color: rgba(196, 210, 228, 0.9);
+}
+.gmv-intra__tick-amount {
+  text-align: right;
+  font-weight: 700;
+  color: rgba(254, 240, 138, 0.96);
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.22);
 }
 .gmv-intra__feed-empty {
   flex: 1;
   margin: 0;
-  padding: 12px 10px;
-  font-size: 11px;
+  padding: 14px 12px;
+  font-size: 13px;
   color: rgba(148, 163, 184, 0.75);
 }
 .gmv-intra__tick--flash {
@@ -711,7 +803,7 @@ watch(
   }
   .gmv-intra__feed {
     flex: 0 0 auto;
-    max-height: 200px;
+    max-height: 220px;
     min-width: 0;
   }
   .gmv-intra__chart {

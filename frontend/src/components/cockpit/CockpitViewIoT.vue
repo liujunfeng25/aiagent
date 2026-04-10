@@ -79,7 +79,7 @@ defineProps({
   flex-direction: column;
   box-sizing: border-box;
   height: 100%;
-  padding: 10px 12px 12px;
+  padding: 14px 16px 16px;
   color: var(--sx-text-title);
   overflow: hidden;
 }
@@ -89,18 +89,34 @@ defineProps({
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: var(--sx-cockpit-bg-stack);
+  background: url('/cockpit-bg.jpg') center / cover no-repeat;
+  background-color: #060a14;
+}
+
+.iot-shell__bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 10%, rgba(34, 211, 238, 0.06), transparent 55%),
+    linear-gradient(
+      180deg,
+      rgba(6, 10, 20, 0.84) 0%,
+      rgba(6, 10, 20, 0.68) 35%,
+      rgba(6, 10, 20, 0.75) 65%,
+      rgba(6, 10, 20, 0.88) 100%
+    );
 }
 
 .iot-shell__bg::after {
   content: '';
   position: absolute;
   inset: 0;
-  opacity: 0.18;
+  opacity: 0.06;
   background-image:
-    linear-gradient(var(--sx-grid-line-a) 1px, transparent 1px),
-    linear-gradient(90deg, var(--sx-grid-line-b) 1px, transparent 1px);
-  background-size: 48px 48px;
+    linear-gradient(rgba(34, 211, 238, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.08) 1px, transparent 1px);
+  background-size: 96px 96px;
 }
 
 .iot-shell__scan {
@@ -111,13 +127,13 @@ defineProps({
   background: linear-gradient(
     180deg,
     transparent 0%,
-    var(--sx-scan-line) 48%,
-    var(--sx-scan-line) 49%,
-    transparent 52%
+    rgba(34, 211, 238, 0.018) 47%,
+    rgba(56, 189, 248, 0.025) 50%,
+    transparent 53%
   );
-  background-size: 100% 240%;
-  animation: iot-scan 10s linear infinite;
-  opacity: 0.5;
+  background-size: 100% 280%;
+  animation: iot-scan 18s linear infinite;
+  opacity: 0.4;
 }
 
 @keyframes iot-scan {

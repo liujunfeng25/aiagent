@@ -103,6 +103,8 @@
             :axis-day-start-ts="gmvDayStartTs"
             :axis-max-ts="gmvAxisMaxTs"
             :live-today-patch="gmvLiveTodayPatch"
+            :recent-minute-amount="gmvRecentMinuteAmount"
+            :recent-minute-count="gmvRecentMinuteCount"
           />
         </div>
         <div class="cockpit-grid__cell cockpit-grid__cell--ops-rank">
@@ -122,6 +124,12 @@
             :live-ws-connected="gmvWsConnected"
             :last-intraday-fetched-at="gmvLastIntradayFetchedAt"
             :last-live-push-at="gmvLastLivePushAt"
+            :last-ws-ping-at="gmvLastWsPingAt"
+            :ws-opened-at="gmvWsOpenedAt"
+            :recent-minute-amount="gmvRecentMinuteAmount"
+            :recent-minute-count="gmvRecentMinuteCount"
+            :recent5m-amount="gmvRecent5mAmount"
+            :recent5m-count="gmvRecent5mCount"
           />
         </div>
       </div>
@@ -252,6 +260,10 @@ watch(activeTab, (k) => {
 })
 
 let clockTimer = null
+let opsAutoRetryTimer = null
+let opsAutoRetryDelayMs = 5000
+/** 由 useCockpitLiveGmv 注入：运营台每次拉排名/单品时同步重拉今日分时桶，避免「日内成交结构」只靠首屏+WS 显得不更新 */
+let gmvLoadIntraday = async () => {}
 
 function pad2(n) { return n < 10 ? `0${n}` : `${n}` }
 
@@ -367,7 +379,6 @@ async function loadOpsData() {
   const errParts = []
   if (!members.ok) errParts.push(`会员排名：${members.error}`)
   if (!goods.ok) errParts.push(`单品分布：${goods.error}`)
-  else if (goods.data?.warning) errParts.push(`单品：${goods.data.warning}`)
   if (!kt.ok) errParts.push(`今日 KPI：${kt.error}`)
 
   if (!isOps) {
@@ -384,6 +395,19 @@ async function loadOpsData() {
   }
 
   loadErrorOps.value = errParts.join(' ')
+  if (loadErrorOps.value) {
+    scheduleOpsAutoRetry()
+  } else {
+    clearOpsAutoRetry()
+  }
+
+  if (activeTab.value === 'ops') {
+    try {
+      await gmvLoadIntraday()
+    } catch {
+      /* 与 WS 增量并行；REST 失败时仍保留 WS 合并数据 */
+    }
+  }
 }
 
 const opsLiveEnabled = computed(() => activeTab.value === 'ops')
@@ -395,18 +419,55 @@ const {
   gmvDayStartTs,
   gmvAxisMaxTs,
   rawBuckets: gmvRawBuckets,
+  recentMinuteAmount: gmvRecentMinuteAmount,
+  recentMinuteCount: gmvRecentMinuteCount,
+  recent5mAmount: gmvRecent5mAmount,
+  recent5mCount: gmvRecent5mCount,
   lastIntradayFetchedAt: gmvLastIntradayFetchedAt,
   lastLivePushAt: gmvLastLivePushAt,
+  lastWsPingAt: gmvLastWsPingAt,
+  wsOpenedAt: gmvWsOpenedAt,
+  loadIntraday: gmvLoadIntradayFromComposable,
 } = useCockpitLiveGmv(opsLiveEnabled, {
   onChartsRefresh: loadOpsData,
   refreshDebounceMs: 8000,
 })
+gmvLoadIntraday = gmvLoadIntradayFromComposable
 
 function onTabClick(key) {
   activeTab.value = key
+  clearOpsAutoRetry()
   if (key === 'ops' || key === 'smart') {
     void loadOpsData()
   }
+}
+
+function clearOpsAutoRetry() {
+  if (opsAutoRetryTimer) {
+    clearTimeout(opsAutoRetryTimer)
+    opsAutoRetryTimer = null
+  }
+  opsAutoRetryDelayMs = 5000
+}
+
+function scheduleOpsAutoRetry() {
+  if (opsAutoRetryTimer) return
+  if (activeTab.value !== 'ops' && activeTab.value !== 'smart') return
+  const delay = opsAutoRetryDelayMs
+  opsAutoRetryTimer = setTimeout(async () => {
+    opsAutoRetryTimer = null
+    // 非看板页时不再重试，避免无意义后台请求
+    if (activeTab.value !== 'ops' && activeTab.value !== 'smart') {
+      clearOpsAutoRetry()
+      return
+    }
+    await loadOpsData()
+    if (loadErrorOps.value) {
+      opsAutoRetryDelayMs = Math.min(60000, Math.round(opsAutoRetryDelayMs * 1.8))
+    } else {
+      opsAutoRetryDelayMs = 5000
+    }
+  }, delay)
 }
 
 function initIotMock() {
@@ -428,6 +489,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (clockTimer) clearInterval(clockTimer)
+  clearOpsAutoRetry()
 })
 </script>
 
@@ -448,7 +510,7 @@ onUnmounted(() => {
   box-sizing: border-box;
   flex: 1;
   min-height: 0;
-  padding: 10px 12px 12px;
+  padding: 14px 16px 16px;
   color: var(--sx-text-body);
   overflow: hidden;
 }
@@ -458,18 +520,35 @@ onUnmounted(() => {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: var(--sx-cockpit-bg-stack);
+  background: url('/cockpit-bg.jpg') center / cover no-repeat;
+  background-color: #060a14;
+}
+
+.cockpit-shell__bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 10%, rgba(34, 211, 238, 0.06), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 85% 50%, rgba(56, 189, 248, 0.03), transparent 50%),
+    linear-gradient(
+      180deg,
+      rgba(6, 10, 20, 0.82) 0%,
+      rgba(6, 10, 20, 0.65) 35%,
+      rgba(6, 10, 20, 0.72) 65%,
+      rgba(6, 10, 20, 0.85) 100%
+    );
 }
 
 .cockpit-shell__bg::after {
   content: '';
   position: absolute;
   inset: 0;
-  opacity: 0.25;
+  opacity: 0.07;
   background-image:
-    linear-gradient(var(--sx-grid-line-a) 1px, transparent 1px),
-    linear-gradient(90deg, var(--sx-grid-line-b) 1px, transparent 1px);
-  background-size: 48px 48px;
+    linear-gradient(rgba(34, 211, 238, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.08) 1px, transparent 1px);
+  background-size: 96px 96px;
 }
 
 .cockpit-shell__scan {
@@ -480,13 +559,13 @@ onUnmounted(() => {
   background: linear-gradient(
     180deg,
     transparent 0%,
-    var(--sx-scan-line) 48%,
-    var(--sx-scan-line) 49%,
-    transparent 52%
+    rgba(34, 211, 238, 0.018) 47%,
+    rgba(56, 189, 248, 0.025) 50%,
+    transparent 53%
   );
-  background-size: 100% 240%;
-  animation: cockpit-scan 10s linear infinite;
-  opacity: 0.5;
+  background-size: 100% 280%;
+  animation: cockpit-scan 18s linear infinite;
+  opacity: 0.45;
 }
 
 @keyframes cockpit-scan {
@@ -520,26 +599,38 @@ onUnmounted(() => {
 .cockpit-top__center { text-align: center; }
 
 .cockpit-top__title-line {
-  height: 2px;
-  width: min(72%, 200px);
+  height: 1px;
+  width: min(72%, 220px);
   margin: 0 auto 8px;
-  background: var(--sx-title-line-gradient);
-  box-shadow: 0 0 10px var(--sx-glow-cyan);
-  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(56, 189, 248, 0.2) 15%,
+    rgba(103, 232, 249, 0.7) 40%,
+    rgba(56, 189, 248, 0.8) 60%,
+    rgba(56, 189, 248, 0.2) 85%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 8px rgba(34, 211, 238, 0.35),
+    0 0 20px rgba(34, 211, 238, 0.12);
+  border-radius: 1px;
 }
 
 .cockpit-top__title-line--short {
   width: min(40%, 120px);
   margin: 8px auto 0;
-  opacity: 0.7;
+  opacity: 0.5;
 }
 
 .cockpit-top__title {
   font-size: clamp(18px, 2.4vw, 26px);
   font-weight: 700;
   letter-spacing: 0.22em;
-  color: var(--sx-text-bright);
-  text-shadow: 0 0 18px rgba(34, 211, 238, 0.32);
+  color: #f8fafc;
+  text-shadow:
+    0 0 20px rgba(34, 211, 238, 0.3),
+    0 1px 4px rgba(0, 0, 0, 0.5);
   margin: 0;
   line-height: 1.2;
 }
@@ -592,7 +683,7 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .cockpit-grid--smart {
@@ -650,8 +741,10 @@ onUnmounted(() => {
   z-index: 10;
   flex-shrink: 0;
   padding: 0 12px;
-  background: var(--sx-tab-bar-bg);
-  border-top: 1px solid var(--sx-tab-bar-border);
+  background: linear-gradient(180deg, rgba(5, 10, 25, 0.65) 0%, rgba(5, 10, 25, 0.96) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(30, 144, 255, 0.12);
 }
 
 .cockpit-tab-bar__inner {
@@ -713,24 +806,29 @@ onUnmounted(() => {
   color: #e2e8f0;
 }
 .cockpit-root--gold-era .cockpit-shell__bg {
-  background:
-    radial-gradient(ellipse 100% 80% at 50% -30%, rgba(56, 189, 248, 0.1), transparent 45%),
-    radial-gradient(ellipse 70% 50% at 100% 50%, rgba(234, 179, 8, 0.06), transparent 50%),
-    radial-gradient(ellipse 70% 50% at 0% 50%, rgba(34, 211, 238, 0.05), transparent 50%),
-    linear-gradient(180deg, #070b19 0%, #0c1225 38%, #070b19 100%);
+  background: url('/cockpit-bg.jpg') center / cover no-repeat;
+  background-color: #060a14;
 }
-.cockpit-root--gold-era .cockpit-shell__bg::after {
-  background-image:
-    linear-gradient(rgba(34, 211, 238, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(34, 211, 238, 0.04) 1px, transparent 1px);
+.cockpit-root--gold-era .cockpit-shell__bg::before {
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 5%, rgba(34, 211, 238, 0.07), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 90% 45%, rgba(234, 179, 8, 0.025), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 10% 50%, rgba(34, 211, 238, 0.03), transparent 50%),
+    linear-gradient(
+      180deg,
+      rgba(6, 10, 20, 0.82) 0%,
+      rgba(6, 10, 20, 0.62) 35%,
+      rgba(6, 10, 20, 0.68) 65%,
+      rgba(6, 10, 20, 0.84) 100%
+    );
 }
 .cockpit-root--gold-era .cockpit-shell__scan {
   background: linear-gradient(
     180deg,
     transparent 0%,
-    rgba(34, 211, 238, 0.025) 48%,
-    rgba(234, 179, 8, 0.018) 49%,
-    transparent 52%
+    rgba(34, 211, 238, 0.015) 47%,
+    rgba(234, 179, 8, 0.012) 50%,
+    transparent 53%
   );
 }
 .cockpit-root--gold-era .cockpit-top__tag {
@@ -739,21 +837,24 @@ onUnmounted(() => {
 .cockpit-root--gold-era .cockpit-top__title-line {
   background: linear-gradient(
     90deg,
-    transparent,
-    rgba(234, 179, 8, 0.85),
-    rgba(34, 211, 238, 0.88),
-    rgba(59, 130, 246, 0.55),
-    transparent
+    transparent 0%,
+    rgba(234, 179, 8, 0.3) 15%,
+    rgba(234, 179, 8, 0.65) 30%,
+    rgba(103, 232, 249, 0.8) 50%,
+    rgba(59, 130, 246, 0.5) 70%,
+    rgba(59, 130, 246, 0.2) 85%,
+    transparent 100%
   );
   box-shadow:
-    0 0 10px rgba(34, 211, 238, 0.4),
-    0 0 14px rgba(234, 179, 8, 0.12);
+    0 0 10px rgba(34, 211, 238, 0.3),
+    0 0 18px rgba(234, 179, 8, 0.08);
 }
 .cockpit-root--gold-era .cockpit-top__title {
   color: #f8fafc;
   text-shadow:
-    0 0 18px rgba(34, 211, 238, 0.32),
-    0 0 28px rgba(234, 179, 8, 0.14);
+    0 0 20px rgba(34, 211, 238, 0.28),
+    0 0 30px rgba(234, 179, 8, 0.1),
+    0 1px 4px rgba(0, 0, 0, 0.5);
 }
 .cockpit-root--gold-era .cockpit-top__sub {
   color: rgba(148, 163, 184, 0.9);

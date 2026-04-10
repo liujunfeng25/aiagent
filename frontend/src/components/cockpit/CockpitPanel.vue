@@ -33,40 +33,47 @@ defineProps({
 </script>
 
 <style scoped>
-/* 青金角标 + 深空玻璃：与驾驶舱「上一版」视觉一致（运营 / 智能沿用；物联为 PanelBlue） */
 .cp {
   position: relative;
   display: flex;
   flex-direction: column;
-  border-radius: 2px;
-  background: linear-gradient(165deg, rgba(10, 15, 35, 0.94) 0%, rgba(10, 15, 35, 0.78) 50%, rgba(8, 47, 73, 0.25) 100%);
-  border: 1px solid rgba(34, 211, 238, 0.25);
+  border-radius: 4px;
+  background: linear-gradient(
+    165deg,
+    rgba(8, 12, 28, 0.82) 0%,
+    rgba(8, 14, 32, 0.72) 50%,
+    rgba(6, 38, 62, 0.35) 100%
+  );
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  border: 1px solid rgba(34, 211, 238, 0.12);
   box-shadow:
-    0 0 20px rgba(34, 211, 238, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    0 0 24px rgba(34, 211, 238, 0.04),
+    0 2px 12px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   overflow: hidden;
 }
 
 .cp__corner {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   pointer-events: none;
   z-index: 2;
-  border: 1.5px solid transparent;
+  border: 1px solid transparent;
 }
-.cp__corner--tl { top: -1px; left: -1px; border-top-color: rgba(34, 211, 238, 0.8); border-left-color: rgba(34, 211, 238, 0.8); }
-.cp__corner--tr { top: -1px; right: -1px; border-top-color: rgba(250, 204, 21, 0.6); border-right-color: rgba(250, 204, 21, 0.6); }
-.cp__corner--bl { bottom: -1px; left: -1px; border-bottom-color: rgba(250, 204, 21, 0.5); border-left-color: rgba(250, 204, 21, 0.5); }
-.cp__corner--br { bottom: -1px; right: -1px; border-bottom-color: rgba(34, 211, 238, 0.6); border-right-color: rgba(34, 211, 238, 0.6); }
+.cp__corner--tl { top: -1px; left: -1px; border-top-color: rgba(34, 211, 238, 0.45); border-left-color: rgba(34, 211, 238, 0.45); }
+.cp__corner--tr { top: -1px; right: -1px; border-top-color: rgba(250, 204, 21, 0.25); border-right-color: rgba(250, 204, 21, 0.25); }
+.cp__corner--bl { bottom: -1px; left: -1px; border-bottom-color: rgba(250, 204, 21, 0.2); border-left-color: rgba(250, 204, 21, 0.2); }
+.cp__corner--br { bottom: -1px; right: -1px; border-bottom-color: rgba(34, 211, 238, 0.3); border-right-color: rgba(34, 211, 238, 0.3); }
 
 .cp__head {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid rgba(34, 211, 238, 0.15);
-  background: linear-gradient(90deg, rgba(34, 211, 238, 0.08) 0%, rgba(234, 179, 8, 0.04) 52%, transparent 72%);
+  border-bottom: 1px solid rgba(34, 211, 238, 0.08);
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.05) 0%, rgba(234, 179, 8, 0.02) 52%, transparent 72%);
   flex-shrink: 0;
 }
 
@@ -95,19 +102,20 @@ defineProps({
 }
 
 .cp__head-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: #22d3ee;
-  box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
+  background: #67e8f9;
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.5), 0 0 3px rgba(34, 211, 238, 0.8);
   flex-shrink: 0;
 }
 
 .cp__title {
   font-size: 13px;
   font-weight: 600;
-  color: #e2e8f0;
+  color: #f1f5f9;
   letter-spacing: 0.06em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .cp__title-en {

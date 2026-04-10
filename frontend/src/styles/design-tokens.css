@@ -137,6 +137,11 @@
   --sx-chart-bar-grad-1: rgba(37, 99, 235, 0.88);
   --sx-chart-bar-region-0: rgba(34, 211, 238, 0.7);
   --sx-chart-bar-region-1: rgba(37, 99, 235, 0.85);
+  --sx-chart-tooltip-blur: blur(12px);
+  --sx-chart-tooltip-shadow: 0 0 20px rgba(34, 211, 238, 0.12);
+  --sx-chart-glow-amber: rgba(251, 191, 36, 0.35);
+  --sx-chart-glow-cyan: rgba(34, 211, 238, 0.25);
+  --sx-chart-label-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 
   /* —— 语义色（业务状态） —— */
   --sx-success: #34d399;
