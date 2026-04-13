@@ -16,9 +16,21 @@
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import axios from 'axios'
 
+/** 北京市中心（GCJ-02），与智能驾驶舱一致 */
+const BJ_CENTER = [116.407526, 39.90403]
+/** 北京市域大致范围，限制拖拽不漂到河北/天津（略留边） */
+const BJ_BOUNDS_SW = [115.42, 39.44]
+const BJ_BOUNDS_NE = [117.52, 41.06]
+
 const props = defineProps({
   vehicles: { type: Array, default: () => [] },
   warehouses: { type: Array, default: () => [] },
+  /** `2d`：物联监控 Tab；`cockpit3d`：3D 物联 Tab，深色矢量 + 俯仰 + 楼块（非卫星） */
+  variant: {
+    type: String,
+    default: '2d',
+    validator: (v) => v === '2d' || v === 'cockpit3d',
+  },
 })
 
 const mapContainer = ref(null)
@@ -160,16 +172,68 @@ async function initMap() {
   AMap = window.AMap
   if (!AMap) { loadFailed.value = true; return }
 
-  map = new AMap.Map(mapContainer.value, {
-    center: [116.407526, 39.90403],
-    zoom: 11,
-    viewMode: '2D',
+  const is3d = props.variant === 'cockpit3d'
+
+  const baseOpts = {
+    center: BJ_CENTER,
     mapStyle: 'amap://styles/darkblue',
     showLabel: true,
     zooms: [9, 18],
-  })
+  }
+
+  let mapOpts
+  if (is3d) {
+    mapOpts = {
+      ...baseOpts,
+      zoom: 12,
+      viewMode: '3D',
+      pitch: 58,
+      rotation: -12,
+      showBuilding: true,
+      buildingAnimation: true,
+    }
+  } else {
+    mapOpts = {
+      ...baseOpts,
+      zoom: 11,
+      viewMode: '2D',
+    }
+  }
+
+  try {
+    map = new AMap.Map(mapContainer.value, mapOpts)
+  } catch (e) {
+    console.warn('[AMapMonitor] 3D 初始化失败，回退 2D', e)
+    if (is3d) {
+      try {
+        map = new AMap.Map(mapContainer.value, {
+          ...baseOpts,
+          zoom: 11,
+          viewMode: '2D',
+        })
+      } catch (e2) {
+        console.warn('[AMapMonitor] 2D 回退失败', e2)
+        loadFailed.value = true
+        failHint.value = '地图 WebGL 初始化失败，请尝试更新浏览器或关闭硬件加速限制'
+        return
+      }
+    } else {
+      loadFailed.value = true
+      return
+    }
+  }
 
   applyDarkStyle()
+
+  if (is3d && map) {
+    try {
+      const sw = new AMap.LngLat(BJ_BOUNDS_SW[0], BJ_BOUNDS_SW[1])
+      const ne = new AMap.LngLat(BJ_BOUNDS_NE[0], BJ_BOUNDS_NE[1])
+      map.setLimitBounds(new AMap.Bounds(sw, ne))
+    } catch (e) {
+      console.warn('[AMapMonitor] setLimitBounds', e)
+    }
+  }
 
   const tileTimer = setTimeout(() => {
     tileWarning.value = true
@@ -179,6 +243,12 @@ async function initMap() {
     clearTimeout(tileTimer)
     tileWarning.value = false
     applyDarkStyle()
+    if (is3d && map) {
+      try {
+        map.setPitch(58)
+        map.setRotation(-12)
+      } catch (_) { /* */ }
+    }
     renderVehicles()
     renderWarehouses()
   })

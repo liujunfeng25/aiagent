@@ -78,6 +78,16 @@
       padding: 8px 12px;
     }
     .xfd-field::placeholder { color: var(--xfd-dim); }
+    /* 日期框右侧日历小图标：深色输入框上显示为白色 */
+    input[type="date"].xfd-field::-webkit-calendar-picker-indicator {
+      cursor: pointer;
+      opacity: 1;
+      filter: brightness(0) invert(1);
+    }
+    input[type="date"].xfd-field::-moz-calendar-picker-indicator {
+      filter: brightness(0) invert(1);
+      opacity: 1;
+    }
     .xfd-label { font-size: 14px; color: var(--xfd-muted); font-weight: 500; }
     .xfd-btn-primary {
       padding: 8px 18px;

@@ -12,6 +12,9 @@ RUN npm config set registry https://registry.npmmirror.com \
     || (rm -rf node_modules && npm install --legacy-peer-deps --no-audit --no-fund) \
     && npm install @vueuse/core@12.0.0 @vueuse/shared@12.0.0 @vueuse/metadata@12.0.0 --legacy-peer-deps --force --no-audit --no-fund
 COPY frontend/ ./
+# Cesium ion 影像/地形（构建期注入，勿把真实 Token 写入仓库）
+ARG VITE_CESIUM_ION_TOKEN
+ENV VITE_CESIUM_ION_TOKEN=$VITE_CESIUM_ION_TOKEN
 RUN npm run build
 
 # 阶段二：运行环境（后端 + 前端静态文件）

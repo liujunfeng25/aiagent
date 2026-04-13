@@ -22,15 +22,35 @@ function fmtCurrency(v) {
   return `¥${Number(v).toLocaleString()}`
 }
 
+function fmtPct(v) {
+  if (v == null || v === '' || Number.isNaN(Number(v))) return '--'
+  return `${Number(v).toFixed(2)}%`
+}
+
 const items = computed(() => {
   const d = props.data
   return [
     { key: 'todayOrders', label: '今日订单', display: d.todayOrders ?? '--', color: '#22d3ee' },
     { key: 'todayGmv', label: '今日 GMV', display: fmtCurrency(d.todayGmv), color: '#fbbf24' },
     { key: 'avgOrderAmount', label: '平均客单价', display: d.avgOrderAmount != null && d.avgOrderAmount !== '' ? `¥${d.avgOrderAmount}` : '--', color: '#38bdf8' },
-    { key: 'deliveryRate', label: '配送及时率', display: d.deliveryRate != null && d.deliveryRate !== '' ? `${d.deliveryRate}%` : '--', color: '#22c55e' },
-    { key: 'returnRate', label: '退货率', display: d.returnRate != null && d.returnRate !== '' ? `${d.returnRate}%` : '--', color: '#ef4444' },
-    { key: 'newCustomers', label: '新增客户', display: d.newCustomers ?? '--', color: '#a78bfa' },
+    {
+      key: 'distinctBuyers',
+      label: '今日下单会员',
+      display: d.distinctBuyers ?? '--',
+      color: '#22c55e',
+    },
+    {
+      key: 'returnRateByAmount',
+      label: '退货金额占GMV',
+      display: fmtPct(d.returnRateByAmount),
+      color: '#ef4444',
+    },
+    {
+      key: 'firstOrderMembers',
+      label: '今日首单会员',
+      display: d.firstOrderMembers ?? '--',
+      color: '#a78bfa',
+    },
   ]
 })
 </script>

@@ -31,7 +31,19 @@
       <!-- Center Column -->
       <div class="iot-grid__cell iot-grid__cell--map">
         <CockpitPanelBlue title="实时定位监控" title-en="REAL-TIME TRACKING">
-          <AMapMonitor :vehicles="vehicles" :warehouses="warehouses" />
+          <AMapMonitor
+            v-if="mapMode === 'amap'"
+            key="amap-2d"
+            variant="2d"
+            :vehicles="vehicles"
+            :warehouses="warehouses"
+          />
+          <CockpitSandboxCity
+            v-else
+            key="sandbox-3d"
+            :vehicles="vehicles"
+            :warehouses="warehouses"
+          />
         </CockpitPanelBlue>
       </div>
 
@@ -52,6 +64,7 @@
 <script setup>
 import CockpitPanelBlue from './CockpitPanelBlue.vue'
 import AMapMonitor from './AMapMonitor.vue'
+import CockpitSandboxCity from './CockpitSandboxCity.vue'
 import PanelDeviceStatus from './PanelDeviceStatus.vue'
 import PanelAlarmLog from './PanelAlarmLog.vue'
 import PanelCameraFeed from './PanelCameraFeed.vue'
@@ -59,6 +72,12 @@ import PanelDeviceBinding from './PanelDeviceBinding.vue'
 import PanelTempHumidity from './PanelTempHumidity.vue'
 
 defineProps({
+  /** 中央：`amap` 高德 2D 北京；`amap3d` Three.js 抽象沙盘（售楼处体块风） */
+  mapMode: {
+    type: String,
+    default: 'amap',
+    validator: (v) => v === 'amap' || v === 'amap3d',
+  },
   deviceStatus: { type: Object, default: () => ({}) },
   allCameras: { type: Array, default: () => [] },
   cameraList: { type: Array, default: () => [] },

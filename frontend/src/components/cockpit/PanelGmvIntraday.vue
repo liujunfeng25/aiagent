@@ -11,15 +11,24 @@
     <div class="gmv-intra">
       <div class="gmv-hero-kpi" v-if="heroData">
         <div class="gmv-hero-kpi__item">
-          <span class="gmv-hero-kpi__value gmv-hero-kpi__value--gmv">{{ heroData.gmvDisplay }}</span>
+          <span
+            class="gmv-hero-kpi__value gmv-hero-kpi__value--gmv"
+            :class="{ 'gmv-hero-kpi__value--bump': kpiBump }"
+          >{{ displayGmv }}</span>
           <span class="gmv-hero-kpi__label">今日 GMV</span>
         </div>
         <div class="gmv-hero-kpi__item">
-          <span class="gmv-hero-kpi__value gmv-hero-kpi__value--orders">{{ heroData.orderCount }}</span>
+          <span
+            class="gmv-hero-kpi__value gmv-hero-kpi__value--orders"
+            :class="{ 'gmv-hero-kpi__value--bump': kpiBump }"
+          >{{ displayOrders }}</span>
           <span class="gmv-hero-kpi__label">今日订单</span>
         </div>
         <div class="gmv-hero-kpi__item">
-          <span class="gmv-hero-kpi__value gmv-hero-kpi__value--ticket">{{ heroData.avgTicket }}</span>
+          <span
+            class="gmv-hero-kpi__value gmv-hero-kpi__value--ticket"
+            :class="{ 'gmv-hero-kpi__value--bump': kpiBump }"
+          >{{ displayAvg }}</span>
           <span class="gmv-hero-kpi__label">客单价</span>
         </div>
       </div>
@@ -30,7 +39,7 @@
         >
           {{ liveWsConnected ? '实时通道·已连接' : '实时通道·未连接' }}
         </span>
-        累计 GMV 阶梯线；点击<strong>数据点</strong>看该分钟订单。
+        累计 GMV 阶梯线。查看分钟订单可使用「最近一分钟明细」。
         <button type="button" class="gmv-intra__hint-btn" @click="openLastBucketDetail">最近一分钟明细</button>
       </p>
       <div class="gmv-intra__main">
@@ -144,6 +153,7 @@ import { ElMessage } from 'element-plus'
 import CockpitPanel from './CockpitPanel.vue'
 import { sxVar } from '../../utils/sxCss.js'
 import { sxTooltip, sxAxisX, sxAxisY, sxGrid, sxGlow, sxAnimation } from '../../utils/echartTheme.js'
+import { animateKpiTriple } from '../../composables/useKpiTween.js'
 
 const props = defineProps({
   /** [minute_ts_sec, cumulative_gmv] */
@@ -173,6 +183,105 @@ const heroData = computed(() => {
     avgTicket: p.avg_ticket != null ? `¥${p.avg_ticket}` : '--',
   }
 })
+
+const displayGmv = ref('--')
+const displayOrders = ref('--')
+const displayAvg = ref('--')
+const kpiBump = ref(false)
+/** 当前缓动中的数值，用于连续更新时作为起点 */
+const currentGmv = ref(0)
+const currentOrders = ref(0)
+const currentAvg = ref(0)
+let kpiTweenFirst = true
+let cancelKpiTween = null
+let bumpTimer = null
+
+function formatTweenGmv(n) {
+  return fmtMoney(n)
+}
+function formatTweenOrders(n) {
+  return String(Math.round(n))
+}
+function formatTweenAvg(n) {
+  return `¥${Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+}
+
+function patchToTargets(p) {
+  if (!p) return null
+  const gmv = p.gmv != null && Number.isFinite(Number(p.gmv)) ? Number(p.gmv) : null
+  const orders = p.order_count != null && Number.isFinite(Number(p.order_count)) ? Number(p.order_count) : null
+  const avg = p.avg_ticket != null && Number.isFinite(Number(p.avg_ticket)) ? Number(p.avg_ticket) : null
+  if (gmv == null && orders == null && avg == null) return null
+  return {
+    gmv: gmv ?? currentGmv.value,
+    orders: orders ?? currentOrders.value,
+    avg: avg ?? currentAvg.value,
+  }
+}
+
+function nearSame(a, b, eps) {
+  return Math.abs(a - b) < eps
+}
+
+watch(
+  () => props.liveTodayPatch,
+  (p) => {
+    const to = patchToTargets(p)
+    if (!to) return
+
+    const from = kpiTweenFirst
+      ? { gmv: 0, orders: 0, avg: 0 }
+      : { gmv: currentGmv.value, orders: currentOrders.value, avg: currentAvg.value }
+
+    if (
+      !kpiTweenFirst
+      && nearSame(from.gmv, to.gmv, 0.005)
+      && nearSame(from.orders, to.orders, 0.5)
+      && nearSame(from.avg, to.avg, 0.005)
+    ) {
+      return
+    }
+
+    if (cancelKpiTween) {
+      cancelKpiTween()
+      cancelKpiTween = null
+    }
+    if (bumpTimer) {
+      clearTimeout(bumpTimer)
+      bumpTimer = null
+    }
+
+    kpiBump.value = true
+    bumpTimer = window.setTimeout(() => {
+      kpiBump.value = false
+      bumpTimer = null
+    }, 280)
+
+    cancelKpiTween = animateKpiTriple(from, to, {
+      durationMs: 520,
+      onFrame: ({ gmv, orders, avg }) => {
+        currentGmv.value = gmv
+        currentOrders.value = orders
+        currentAvg.value = avg
+        displayGmv.value = formatTweenGmv(gmv)
+        displayOrders.value = formatTweenOrders(orders)
+        displayAvg.value = formatTweenAvg(avg)
+      },
+      onComplete: () => {
+        currentGmv.value = to.gmv
+        currentOrders.value = to.orders
+        currentAvg.value = to.avg
+        displayGmv.value = formatTweenGmv(to.gmv)
+        displayOrders.value = formatTweenOrders(to.orders)
+        displayAvg.value = formatTweenAvg(to.avg)
+        cancelKpiTween = null
+        kpiTweenFirst = false
+      },
+    })
+  },
+  { deep: true, immediate: true },
+)
+
 const parsedTickerLines = computed(() => props.tickerLines.map((line) => parseTickerLine(line)))
 
 const chartRef = ref(null)
@@ -327,12 +436,12 @@ function onChartClick(params) {
   const t0 = props.axisDayStartTs
   const t1 = props.axisMaxTs
   if (t0 && tsSec === t0 && yVal === 0) {
-    ElMessage.info('此为当日 0 点起点（累计 0），请点击黄色阶梯上的时刻查看该分钟订单')
+    ElMessage.info('此为当日 0 点起点（累计 0），请点击阶梯上产生累计变化的时刻查看该分钟订单')
     return
   }
   const lastRealTs = props.series?.length ? Number(props.series[props.series.length - 1][0]) : null
   if (t1 && lastRealTs != null && tsSec === t1 && t1 > lastRealTs) {
-    ElMessage.info('此处为延伸至当前时刻的持平线，请点击左侧有台阶变化的时刻查看订单明细')
+    ElMessage.info('此处为延伸至当前时刻的持平线，请点击左侧阶梯发生转折的时刻查看订单明细')
     return
   }
 
@@ -434,7 +543,7 @@ function buildOption(pairs) {
         const tlabel = ms != null
           ? new Date(ms).toLocaleString('zh-CN', { hour12: false })
           : ''
-        return `${tlabel}<br/>累计 GMV: ¥${Number(y).toLocaleString()}<br/><span style="opacity:.85;font-size:11px">点击数据点查看该分钟订单</span>`
+        return `${tlabel}<br/>累计 GMV: ¥${Number(y).toLocaleString()}`
       },
     }),
     xAxis: {
@@ -531,6 +640,14 @@ onMounted(() => {
 onUnmounted(() => {
   ro?.disconnect()
   chart.value?.dispose()
+  if (cancelKpiTween) {
+    cancelKpiTween()
+    cancelKpiTween = null
+  }
+  if (bumpTimer) {
+    clearTimeout(bumpTimer)
+    bumpTimer = null
+  }
 })
 
 watch(
@@ -614,6 +731,40 @@ watch(
   color: #38bdf8;
   text-shadow: 0 0 18px rgba(56, 189, 248, 0.45), 0 0 40px rgba(56, 189, 248, 0.12);
 }
+
+@keyframes gmv-kpi-value-bump {
+  0% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+  45% {
+    transform: translateY(-3px);
+    filter: brightness(1.12);
+  }
+  100% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+}
+.gmv-hero-kpi__value--bump {
+  animation: gmv-kpi-value-bump 0.28s ease-out both;
+}
+.gmv-hero-kpi__value--bump.gmv-hero-kpi__value--gmv {
+  text-shadow:
+    0 0 22px rgba(251, 191, 36, 0.65),
+    0 0 48px rgba(251, 191, 36, 0.22);
+}
+.gmv-hero-kpi__value--bump.gmv-hero-kpi__value--orders {
+  text-shadow:
+    0 0 22px rgba(34, 211, 238, 0.6),
+    0 0 48px rgba(34, 211, 238, 0.2);
+}
+.gmv-hero-kpi__value--bump.gmv-hero-kpi__value--ticket {
+  text-shadow:
+    0 0 22px rgba(56, 189, 248, 0.55),
+    0 0 48px rgba(56, 189, 248, 0.18);
+}
+
 .gmv-hero-kpi__label {
   display: block;
   margin-top: 4px;

@@ -145,7 +145,8 @@
     </el-button>
 
     <CockpitViewIoT
-      v-else-if="activeTab === 'iot'"
+      v-else-if="activeTab === 'iot' || activeTab === 'iot3d'"
+      :map-mode="activeTab === 'iot3d' ? 'amap3d' : 'amap'"
       :device-status="iotDeviceStatus"
       :all-cameras="iotAllCameras"
       :camera-list="iotCameraList"
@@ -210,6 +211,7 @@ const tabs = [
   { key: 'ops', label: '运营指挥台', icon: '◉' },
   { key: 'smart', label: '智能驾驶舱', icon: '◈' },
   { key: 'iot', label: '物联监控大屏', icon: '◎' },
+  { key: 'iot3d', label: '3D物联监控大屏', icon: '◆' },
 ]
 
 const loadErrorOps = ref('')
@@ -221,7 +223,7 @@ const goodsData = ref([])
 const regionData = ref([])
 const kpiRange = ref(null)
 const kpiToday = ref(null)
-/** 智能驾驶舱 PanelKpi / PanelGrowth 用（今日 KPI + 演示性辅指标） */
+/** 智能驾驶舱 PanelKpi / PanelGrowth 用（KPI 来自 kpi-summary：订单/GMV/会员/退单等为业务库实查） */
 const kpiLegacy = ref({})
 const mapVehicles = ref([])
 const drillAdcode = ref('')
@@ -256,7 +258,7 @@ async function ensureGeoAndVehicles() {
 }
 
 watch(activeTab, (k) => {
-  if (k === 'smart' || k === 'iot') void ensureGeoAndVehicles()
+  if (k === 'smart' || k === 'iot' || k === 'iot3d') void ensureGeoAndVehicles()
 })
 
 let clockTimer = null
@@ -300,9 +302,9 @@ function syncKpiLegacy(kr, kt) {
     todayOrders: t?.order_count ?? r?.order_count ?? '--',
     todayGmv: t?.gmv ?? r?.gmv ?? '--',
     avgOrderAmount: t?.avg_ticket ?? r?.avg_ticket ?? '--',
-    deliveryRate: 96.5,
-    returnRate: 1.8,
-    newCustomers: 12,
+    distinctBuyers: t?.distinct_buyers ?? '--',
+    returnRateByAmount: t?.return_rate_by_amount_pct ?? '--',
+    firstOrderMembers: t?.first_order_members ?? '--',
   }
 }
 

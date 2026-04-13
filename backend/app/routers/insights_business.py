@@ -611,19 +611,60 @@ def kpi_summary(
         start, end = _parse_range(start_date, end_date)
     t0, t1 = _day_start_ts(start), _day_end_ts(end)
     ot, ta = S.ORDERS_TIME_COL, S.ORDERS_AMOUNT_COL
-    sql = f"""
+    mid = S.ORDERS_MEMBER_COL
+    sql_orders = f"""
         SELECT COUNT(*) AS order_count,
                COALESCE(SUM(`{ta}`), 0) AS gmv
         FROM `{S.ORDERS_TABLE}`
         WHERE `{ot}` >= %s AND `{ot}` <= %s
     """
+    sql_distinct_buyers = f"""
+        SELECT COUNT(DISTINCT `{mid}`) AS c
+        FROM `{S.ORDERS_TABLE}`
+        WHERE `{ot}` >= %s AND `{ot}` <= %s
+              AND `{mid}` IS NOT NULL AND `{mid}` != 0
+    """
+    # 全库首次下单时间落在本统计窗口内的会员数（今日即「今日首单会员」）
+    sql_first_order_members = f"""
+        SELECT COUNT(*) AS c FROM (
+            SELECT `{mid}` AS m
+            FROM `{S.ORDERS_TABLE}`
+            WHERE `{mid}` IS NOT NULL AND `{mid}` != 0
+            GROUP BY `{mid}`
+            HAVING MIN(`{ot}`) >= %s AND MIN(`{ot}`) <= %s
+        ) t
+    """
     conn = _mysql_connect(cfg)
+    distinct_buyers = 0
+    first_order_members = 0
+    backorder_count = 0
+    backorder_amount = 0.0
     try:
         try:
             with conn.cursor() as cur:
-                cur.execute(sql, (t0, t1))
-                row = cur.fetchone() or {}
-                row = dict(row)
+                cur.execute(sql_orders, (t0, t1))
+                row = dict(cur.fetchone() or {})
+                cur.execute(sql_distinct_buyers, (t0, t1))
+                distinct_buyers = int(dict(cur.fetchone() or {}).get("c") or 0)
+                cur.execute(sql_first_order_members, (t0, t1))
+                first_order_members = int(dict(cur.fetchone() or {}).get("c") or 0)
+                bt, ba = S.BACKORDER_TIME_COL, S.BACKORDER_AMOUNT_COL
+                try:
+                    cur.execute(
+                        f"""
+                        SELECT COUNT(*) AS c, COALESCE(SUM(`{ba}`), 0) AS amt
+                        FROM `{S.BACKORDER_TABLE}`
+                        WHERE `{bt}` IS NOT NULL AND `{bt}` > 0
+                              AND `{bt}` >= %s AND `{bt}` <= %s
+                        """,
+                        (t0, t1),
+                    )
+                    br = dict(cur.fetchone() or {})
+                    backorder_count = int(br.get("c") or 0)
+                    backorder_amount = float(br.get("amt") or 0)
+                except pymysql.MySQLError:
+                    backorder_count = 0
+                    backorder_amount = 0.0
         except pymysql.MySQLError as e:
             raise HTTPException(
                 status_code=503,
@@ -635,6 +676,9 @@ def kpi_summary(
     order_count = int(row.get("order_count") or 0)
     gmv = float(row.get("gmv") or 0)
     avg_ticket = round(gmv / order_count, 2) if order_count else 0.0
+    return_rate_by_amount_pct = (
+        round(100.0 * backorder_amount / gmv, 2) if gmv > 0 else 0.0
+    )
     return {
         "scope": scope,
         "start_date": start.isoformat(),
@@ -642,6 +686,17 @@ def kpi_summary(
         "order_count": order_count,
         "gmv": gmv,
         "avg_ticket": avg_ticket,
+        "distinct_buyers": distinct_buyers,
+        "first_order_members": first_order_members,
+        "backorder_count": backorder_count,
+        "backorder_amount": backorder_amount,
+        "return_rate_by_amount_pct": return_rate_by_amount_pct,
+        "metrics_note": (
+            "业务库无物流/签收时间字段，无法用真实「配送及时率」；"
+            "大屏「今日下单会员」为当日 DISTINCT member_id。"
+            "「退货金额占GMV」= 当日 backorder 表金额合计 / 当日 orders GMV。"
+            "「今日首单会员」= 全库首笔订单时间落在当日的会员数。"
+        ),
     }
 
 

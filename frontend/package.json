@@ -11,8 +11,11 @@
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.0",
     "axios": "^1.6.0",
+    "cesium": "^1.140.0",
     "echarts": "^5.4.0",
     "element-plus": "^2.5.0",
+    "three": "^0.170.0",
+    "vite-plugin-cesium": "^1.2.23",
     "vue": "^3.4.0",
     "vue-router": "^4.2.0"
   },
