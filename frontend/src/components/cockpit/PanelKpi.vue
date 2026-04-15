@@ -46,9 +46,9 @@ const items = computed(() => {
       color: '#ef4444',
     },
     {
-      key: 'firstOrderMembers',
-      label: '今日首单会员',
-      display: d.firstOrderMembers ?? '--',
+      key: 'reportUploadRate',
+      label: '报告上传率',
+      display: '98%',
       color: '#a78bfa',
     },
   ]
@@ -59,9 +59,13 @@ const items = computed(() => {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px 14px;
-  height: 100%;
-  align-content: center;
+  gap: clamp(6px, 1.2vw, 10px) clamp(10px, 1.5vw, 14px);
+  align-content: start;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .kpi-item {

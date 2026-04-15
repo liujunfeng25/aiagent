@@ -33,6 +33,13 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
   const liveTodayPatch = ref(null)
   const wsConnected = ref(false)
   const tickerLines = ref([])
+  /** @type {import('vue').Ref<{ id: number, add_time: number, amount: number, minute_start: number }[]>} 含订单 id，供点击拉详情 */
+  const tickerFeedItems = ref([])
+  /** 进入页面前当日的最近若干笔订单（与 batch 行字段一致），仅拉取一次 */
+  const todayBackfillItems = ref([])
+  const todayBackfillLoading = ref(false)
+  let backfillLoaded = false
+  let backfillInFlight = false
   /** 今日 0 点 UNIX 秒（与 today-intraday-gmv.day_start_ts 一致） */
   const gmvDayStartTs = ref(0)
   /** 时间轴右界：min(当前时刻, 当日 23:59:59) */
@@ -44,6 +51,9 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
   let refreshTimer = null
   let axisTimer = null
   const MAX_TICKER = 24
+  const MAX_OPS_TICKER = 16
+  /** @type {import('vue').Ref<string[]>} 运营台：WebSocket 推送的退货单增量提示 */
+  const opsAlertReturnTicks = ref([])
   const rawBuckets = ref([])
   const recentMinuteAmount = ref(0)
   const recentMinuteCount = ref(0)
@@ -144,9 +154,17 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
     }
     rawBuckets.value = rb
     const lines = [...tickerLines.value]
+    const feed = [...tickerFeedItems.value]
     for (let i = rows.length - 1; i >= 0; i -= 1) {
       const r = rows[i]
       lines.unshift(`${fmtClock(r.add_time)}  +¥${Number(r.amount).toLocaleString()}`)
+      const oid = Number(r.id)
+      feed.unshift({
+        id: Number.isFinite(oid) ? oid : 0,
+        add_time: Number(r.add_time) || 0,
+        amount: Number(r.amount) || 0,
+        minute_start: Number(r.minute_start) || 0,
+      })
       recentOrderQueue.push({
         ts: Number(r.add_time) || Math.floor(Date.now() / 1000),
         minuteStart: Number(r.minute_start) || 0,
@@ -154,7 +172,54 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
       })
     }
     tickerLines.value = lines.slice(0, MAX_TICKER)
+    tickerFeedItems.value = feed.filter((x) => x.id > 0).slice(0, MAX_TICKER)
     recalcRecentStats()
+  }
+
+  function applyOpsAlertBatch(msg) {
+    const rows = msg.returns || []
+    if (!rows.length) return
+    lastLivePushAt.value = Date.now()
+    const lines = [...opsAlertReturnTicks.value]
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      const r = rows[i]
+      const sn = r.backorder_sn || `#${r.id}`
+      const amt = Number(r.total_amount) || 0
+      lines.unshift(
+        `${fmtClock(r.add_time)}  退货 ${sn}  +\u00a5${amt.toLocaleString()}`,
+      )
+    }
+    opsAlertReturnTicks.value = lines.slice(0, MAX_OPS_TICKER)
+  }
+
+  async function loadTodayBackfill() {
+    if (backfillLoaded || !enabledRef.value || backfillInFlight) return
+    backfillInFlight = true
+    todayBackfillLoading.value = true
+    try {
+      const beforeTs = Math.floor(Date.now() / 1000)
+      const r = await fetch(
+        `${API_BASE}/today-orders-backfill?before_ts=${encodeURIComponent(beforeTs)}`,
+      )
+      if (!r.ok) return
+      const d = await r.json()
+      if (!enabledRef.value) return
+      const arr = Array.isArray(d.orders) ? d.orders : []
+      todayBackfillItems.value = arr
+        .map((row) => ({
+          id: Number(row.id) || 0,
+          add_time: Number(row.add_time) || 0,
+          amount: Number(row.amount) || 0,
+          minute_start: 0,
+        }))
+        .filter((x) => x.id > 0)
+      backfillLoaded = true
+    } catch {
+      /* 静默 */
+    } finally {
+      backfillInFlight = false
+      todayBackfillLoading.value = false
+    }
   }
 
   async function loadIntraday() {
@@ -181,6 +246,7 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
         return [b.minute_start, cum]
       })
       lastIntradayFetchedAt.value = Date.now()
+      void loadTodayBackfill()
     } catch {
       /* 静默，驾驶舱其它数据仍可用 */
     }
@@ -272,6 +338,7 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
           applyBatch(msg)
           scheduleChartsRefresh()
         }
+        if (msg.type === 'ops_alert_batch') applyOpsAlertBatch(msg)
         if (msg.type === 'refresh_hint') scheduleChartsRefresh()
       } catch {
         /* */
@@ -295,6 +362,12 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
         disconnect()
         liveTodayPatch.value = null
         tickerLines.value = []
+        tickerFeedItems.value = []
+        todayBackfillItems.value = []
+        todayBackfillLoading.value = false
+        backfillLoaded = false
+        backfillInFlight = false
+        opsAlertReturnTicks.value = []
         gmvDayStartTs.value = 0
         gmvAxisMaxTs.value = 0
         lastIntradayFetchedAt.value = null
@@ -318,6 +391,9 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
     liveTodayPatch,
     wsConnected,
     tickerLines,
+    tickerFeedItems,
+    todayBackfillItems,
+    todayBackfillLoading,
     gmvDayStartTs,
     gmvAxisMaxTs,
     rawBuckets,
@@ -330,5 +406,6 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
     lastWsPingAt,
     wsOpenedAt,
     loadIntraday,
+    opsAlertReturnTicks,
   }
 }

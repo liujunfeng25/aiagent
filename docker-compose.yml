@@ -48,10 +48,11 @@ services:
       - SXW_MYSQL_PASSWORD=THwnkTSQbcCCrsey
       - SXW_MYSQL_DATABASE=edu_std_supp
       - SXW_MYSQL_SUPP_CODE=10133
-      # 高德地图
+      # 高德「配送端」：Web端=JSAPI+安全密钥；智能排线=Web服务（服务端地理编码）
       - AMAP_JSAPI_KEY=569a5415d46ab17dc766bdbd4035d55b
       - AMAP_SECURITY_JSCODE=bf85102866042d3d6c0c00f3785bb765
-      # 北斗 GPS18
+      - AMAP_WEB_KEY=78277bdbbf47e56956e13e176fe9d9b6
+      # 北斗 GPS18：硬件百度坐标、前端高德地图；代码内默认 getDeviceList/history 的 mapType=BAIDU 且服务端 BD→GCJ。可设 GPS18_MAP_TYPE 覆盖。
       - GPS18_OPENAPI_BASE=http://openapi.18gps.net
       - GPS18_LOGIN_NAME=食迅易联
       - GPS18_LOGIN_PASSWORD=123456

@@ -26,6 +26,18 @@ const routes = [
   { path: '/analysis', redirect: (to) => ({ path: '/insights', query: { ...to.query, tab: 'orders' } }) },
   { path: '/price', name: 'Price', component: () => import('../views/Price.vue'), meta: { title: '报价抓取' } },
   { path: '/system', name: 'System', component: () => import('../views/System.vue'), meta: { title: '系统管理' } },
+  {
+    path: '/system/smart-split-demo',
+    name: 'SmartSplitDemo',
+    component: () => import('../views/SmartSplitDemo.vue'),
+    meta: { title: '演示Demo' },
+  },
+  {
+    path: '/system/smart-route-demo',
+    name: 'SmartRouteDemo',
+    component: () => import('../views/SmartRouteDemo.vue'),
+    meta: { title: '智能排线' },
+  },
   { path: '/logistics', name: 'LogisticsIndex', component: () => import('../views/LogisticsIndex.vue'), meta: { title: '智能物流' } },
   { path: '/logistics/vehicle/:id/bind', name: 'LogisticsBind', component: () => import('../views/LogisticsBind.vue'), meta: { title: '设备绑定' } },
   { path: '/logistics/vehicle/:id/location', name: 'LogisticsVehicleLocation', component: () => import('../views/LogisticsVehicleLocation.vue'), meta: { title: '车辆位置' } },

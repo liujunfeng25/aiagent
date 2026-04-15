@@ -43,16 +43,32 @@ def increment_image_recognition() -> None:
             pass
 
 
-def get_image_recognition_today() -> int:
-    day = _today_str()
+def _read_daily_counts() -> dict:
     with _LOCK:
         try:
             data = json.loads(STATS_FILE.read_text(encoding="utf-8")) if STATS_FILE.exists() else {}
         except Exception:
-            return 0
-        if not isinstance(data, dict):
-            return 0
-        entry = data.get(day) or {}
-        if isinstance(entry, dict):
-            return int(entry.get("image_recognition") or 0)
-        return 0
+            return {}
+        return data if isinstance(data, dict) else {}
+
+
+def get_image_recognition_for_date(date_str: str) -> int:
+    """指定日期（YYYY-MM-DD，东八区）的识别次数。"""
+    entry = _read_daily_counts().get(date_str) or {}
+    if isinstance(entry, dict):
+        return int(entry.get("image_recognition") or 0)
+    return 0
+
+
+def get_image_recognition_yesterday() -> int:
+    try:
+        from zoneinfo import ZoneInfo
+
+        d = datetime.now(ZoneInfo("Asia/Shanghai")).date() - timedelta(days=1)
+    except Exception:
+        d = datetime.now(timezone(timedelta(hours=8))).date() - timedelta(days=1)
+    return get_image_recognition_for_date(d.strftime("%Y-%m-%d"))
+
+
+def get_image_recognition_today() -> int:
+    return get_image_recognition_for_date(_today_str())

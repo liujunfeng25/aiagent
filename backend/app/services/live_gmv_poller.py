@@ -38,6 +38,7 @@ def _day_bounds() -> tuple[int, int]:
 class LiveGmvHub:
     clients: set[WebSocket] = field(default_factory=set)
     watermark: _Watermark = field(default_factory=_Watermark)
+    backorder_watermark_id: int = 0
     cumulative_gmv: float = 0.0
     cumulative_orders: int = 0
     today_t0: int = 0
@@ -140,6 +141,19 @@ class LiveGmvHub:
                     )
                 else:
                     self.watermark = _Watermark(t0, 0)
+                b_pk, b_t = S.BACKORDER_PK_COL, S.BACKORDER_TIME_COL
+                b_tbl = S.BACKORDER_TABLE
+                cur.execute(
+                    f"""
+                    SELECT COALESCE(MAX(`{b_pk}`), 0) AS mid
+                    FROM `{b_tbl}`
+                    WHERE `{b_t}` >= %s AND `{b_t}` <= %s
+                    """,
+                    (t0, now_ts),
+                )
+                self.backorder_watermark_id = int(
+                    dict(cur.fetchone() or {}).get("mid") or 0,
+                )
                 self.initialized = True
         except pymysql.MySQLError as e:
             logger.warning("live_gmv: init query fail %s", e)
@@ -183,6 +197,47 @@ class LiveGmvHub:
             conn.close()
         return rows_out
 
+    def _sync_poll_backorder_batch(self) -> list[dict[str, Any]]:
+        """今日新增退货单（按 id 递增），用于运营台预警 WebSocket 冒泡。"""
+        cfg = resolve_business_mysql()
+        if not cfg:
+            return []
+        t0, t1_day = _day_bounds()
+        now_ts = min(int(datetime.now(_TZ).timestamp()), t1_day)
+        b_tbl = S.BACKORDER_TABLE
+        b_pk = S.BACKORDER_PK_COL
+        b_t = S.BACKORDER_TIME_COL
+        b_sn = S.BACKORDER_SN_COL
+        b_oid = S.BACKORDER_ORDER_FK_COL
+        b_amt = S.BACKORDER_AMOUNT_COL
+        b_bst = S.BACKORDER_BACK_STATUS_COL
+        wid = self.backorder_watermark_id
+        try:
+            conn = get_connection(cfg.host, cfg.port, cfg.database, cfg.user, cfg.password)
+        except pymysql.MySQLError:
+            return []
+        rows_out: list[dict[str, Any]] = []
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT `{b_pk}` AS id, `{b_t}` AS add_time, `{b_sn}` AS backorder_sn,
+                           `{b_oid}` AS order_id, `{b_amt}` AS total_amount, `{b_bst}` AS back_status
+                    FROM `{b_tbl}`
+                    WHERE `{b_t}` >= %s AND `{b_t}` <= %s AND `{b_pk}` > %s
+                    ORDER BY `{b_pk}` ASC
+                    LIMIT 80
+                    """,
+                    (t0, now_ts, wid),
+                )
+                for r in cur.fetchall():
+                    rows_out.append(dict(r))
+        except pymysql.MySQLError as e:
+            logger.warning("live_gmv: backorder poll fail %s", e)
+        finally:
+            conn.close()
+        return rows_out
+
 
 hub = LiveGmvHub()
 
@@ -205,41 +260,64 @@ async def _poll_loop() -> None:
             if not hub.initialized:
                 await asyncio.to_thread(hub._sync_init_from_db)
             batch = await asyncio.to_thread(hub._sync_poll_batch)
-            if not batch:
+            bo_batch = await asyncio.to_thread(hub._sync_poll_backorder_batch)
+            if not batch and not bo_batch:
                 await asyncio.sleep(interval)
                 continue
-            rows_payload = []
-            for r in batch:
-                oid = int(r["oid"])
-                add_time = int(r["add_time"])
-                amt = float(r["amount"] or 0)
-                hub.watermark = _Watermark(add_time, oid)
-                hub.cumulative_gmv += amt
-                hub.cumulative_orders += 1
-                mk = _minute_key(add_time, hub.today_t0)
-                rows_payload.append(
+            if batch:
+                rows_payload = []
+                for r in batch:
+                    oid = int(r["oid"])
+                    add_time = int(r["add_time"])
+                    amt = float(r["amount"] or 0)
+                    hub.watermark = _Watermark(add_time, oid)
+                    hub.cumulative_gmv += amt
+                    hub.cumulative_orders += 1
+                    mk = _minute_key(add_time, hub.today_t0)
+                    rows_payload.append(
+                        {
+                            "id": oid,
+                            "add_time": add_time,
+                            "amount": round(amt, 2),
+                            "minute_start": mk,
+                        }
+                    )
+                avg_ticket = (
+                    round(hub.cumulative_gmv / hub.cumulative_orders, 2)
+                    if hub.cumulative_orders
+                    else 0.0
+                )
+                await hub.broadcast(
                     {
-                        "id": oid,
-                        "add_time": add_time,
-                        "amount": round(amt, 2),
-                        "minute_start": mk,
+                        "type": "batch",
+                        "rows": rows_payload,
+                        "cumulative_gmv": round(hub.cumulative_gmv, 2),
+                        "order_count": hub.cumulative_orders,
+                        "avg_ticket": avg_ticket,
                     }
                 )
-            avg_ticket = (
-                round(hub.cumulative_gmv / hub.cumulative_orders, 2)
-                if hub.cumulative_orders
-                else 0.0
-            )
-            await hub.broadcast(
-                {
-                    "type": "batch",
-                    "rows": rows_payload,
-                    "cumulative_gmv": round(hub.cumulative_gmv, 2),
-                    "order_count": hub.cumulative_orders,
-                    "avg_ticket": avg_ticket,
-                }
-            )
-            await hub.broadcast({"type": "refresh_hint", "reason": "new_orders"})
+                await hub.broadcast({"type": "refresh_hint", "reason": "new_orders"})
+            if bo_batch:
+                for r in bo_batch:
+                    hub.backorder_watermark_id = max(
+                        hub.backorder_watermark_id,
+                        int(r["id"]),
+                    )
+                returns_payload = []
+                for r in bo_batch:
+                    returns_payload.append(
+                        {
+                            "id": int(r["id"]),
+                            "add_time": int(r["add_time"]),
+                            "backorder_sn": str(r.get("backorder_sn") or ""),
+                            "order_id": int(r.get("order_id") or 0),
+                            "total_amount": round(float(r.get("total_amount") or 0), 2),
+                            "back_status": int(r.get("back_status") or 0),
+                        }
+                    )
+                await hub.broadcast(
+                    {"type": "ops_alert_batch", "returns": returns_payload},
+                )
         except asyncio.CancelledError:
             raise
         except Exception as e:

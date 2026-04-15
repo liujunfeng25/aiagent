@@ -76,6 +76,8 @@ def _json_response_dict(
 
 
 _API_BASE = os.getenv("GPS18_OPENAPI_BASE", "http://openapi.18gps.net").rstrip("/")
+# 公司硬件为百度系坐标：向 GPS18 要「百度经纬度」须传 BAIDU；空串时平台常按 WGS 返回，与下方 BD→GCJ 不一致会偏点
+_DEFAULT_GPS18_MAP_TYPE = "BAIDU"
 _LOGIN_PATH = "/GetDateServices.asmx/loginSystem"
 _GETDATE_PATH = "/GetDateServices.asmx/GetDate"
 _MDS_CACHE_TTL = int(os.getenv("GPS18_MDS_CACHE_SECONDS", "1020"))  # 17 分钟
@@ -152,17 +154,20 @@ def _bd09_to_gcj02(lng: float, lat: float) -> tuple:
 
 
 def _lng_lat_to_amap_gcj02(lng: float, lat: float, map_type_used: Optional[str]) -> tuple:
-    """与 sxw `Gps18Api::lngLatToAmapGcj02`：按 mapType（如 BAIDU）将接口经纬度转为高德 GCJ-02（bd09 分支同 `ElitechApi::bd09ToGcj02`）。"""
+    """开放平台返回的经纬度系别由请求 mapType 决定；本公司硬件为百度 BD-09，页面地图为高德（GCJ-02）。
+    此处将 BD-09 / WGS 等转为 GCJ-02 供高德 JS使用（不是改用百度底图）。"""
     mode = ""
     if map_type_used is not None and str(map_type_used).strip():
         mode = str(map_type_used).strip().lower()
     if not mode:
         mode = os.getenv("GPS18_COORD_FOR_AMAP", "auto").strip().lower()
     if mode in ("", "auto"):
-        # 与 mapTypeForLatest 一致；仅设 GPS18_HISTORY_MAP_TYPE 时批量/实时也按历史坐标系推断（.env 常见）
+        # 与 sxw 一致；未配 env 时按公司硬件默认百度系（对应请求里 mapType=BAIDU 的返回）
         mt = os.getenv("GPS18_MAP_TYPE", "").strip().lower()
         if not mt:
             mt = os.getenv("GPS18_HISTORY_MAP_TYPE", "").strip().lower()
+        if not mt:
+            mt = "baidu"
         if mt == "baidu":
             mode = "bd09"
         elif mt in ("gaode", "amap"):
@@ -581,7 +586,7 @@ class Gps18Client:
         data = self._getdate({
             "method": "getDeviceListByCustomId",
             "id": sess["unit_id"],
-            "mapType": os.getenv("GPS18_MAP_TYPE", ""),
+            "mapType": os.getenv("GPS18_MAP_TYPE", _DEFAULT_GPS18_MAP_TYPE),
         })
         if not data.get("success") in (True, "true"):
             raise RuntimeError(f"getDeviceListByCustomId 失败: {data.get('errorDescribe') or data}")
@@ -717,11 +722,14 @@ class Gps18Client:
         }
 
     def _map_type_for_history(self) -> str:
-        """与 Gps18Api::mapTypeForHistory"""
+        """与 Gps18Api::mapTypeForHistory；未配置时与公司批量一致，默认 BAIDU（百度坐标轨迹）。"""
         h = os.getenv("GPS18_HISTORY_MAP_TYPE", "").strip()
         if h:
             return h
-        return os.getenv("GPS18_MAP_TYPE", "").strip()
+        m = os.getenv("GPS18_MAP_TYPE", "").strip()
+        if m:
+            return m
+        return _DEFAULT_GPS18_MAP_TYPE
 
     def _history_play_lbs(self) -> str:
         return "true" if os.getenv("GPS18_HISTORY_PLAY_LBS", "0") == "1" else "false"

@@ -33,16 +33,73 @@
 
       <div class="cockpit-grid cockpit-grid--smart">
         <div class="cockpit-grid__cell cockpit-grid__cell--r1c1">
-          <PanelRegion :data="regionData" />
+          <PanelRegionBeijingDistribution :data="districtRegionBarData" @district-drill="onMapDrill" />
         </div>
         <div class="cockpit-grid__cell cockpit-grid__cell--map">
-          <CockpitPanel title="车辆分布" title-en="VEHICLE LOCATION">
-            <CockpitBeijingMap
-              :vehicles="mapVehicles"
-              :drill-adcode="drillAdcode"
-              @drill="onMapDrill"
-              @back="onBackCity"
-            />
+          <CockpitPanel title="订单分布" title-en="ORDER DISTRIBUTION">
+            <div class="cockpit-smart-map-wrap">
+              <div class="cockpit-smart-map-wrap__chart">
+                <CockpitBeijingMap
+                  map-geo="beijing"
+                  :district-map-data="districtMapHeatData"
+                  :order-markers="mapMarkersInDrill"
+                  :show-order-scatter="showMapOrderScatter"
+                  :drill-adcode="mapDrillAdcode"
+                  @drill="onMapDrill"
+                  @back="onMapBack"
+                  @marker-click="onMapMarkerClick"
+                />
+              </div>
+              <aside
+                class="cockpit-smart-map-wrap__aside"
+                :class="mapDrillAdcode ? 'cockpit-smart-map-wrap__aside--drill' : 'cockpit-smart-map-wrap__aside--insights'"
+                :aria-label="mapDrillAdcode ? '区县客户列表' : '区县洞察与客单价'"
+              >
+                <div class="cockpit-smart-map-wrap__crumb">
+                  <span>北京市</span>
+                  <template v-if="mapDrillName">
+                    <span class="cockpit-smart-map-wrap__crumb-sep">·</span>
+                    <span>{{ mapDrillName }}</span>
+                  </template>
+                </div>
+                <template v-if="mapDrillAdcode">
+                  <el-input
+                    v-model="districtSearch"
+                    size="small"
+                    clearable
+                    placeholder="搜索客户 / 地址"
+                    class="cockpit-smart-map-wrap__search"
+                  />
+                  <el-table
+                    :data="districtListFiltered"
+                    size="small"
+                    stripe
+                    :max-height="380"
+                    class="cockpit-smart-map-wrap__table"
+                    highlight-current-row
+                    @row-click="onDistrictTableRowClick"
+                  >
+                    <el-table-column prop="customer_name" label="客户" min-width="88" show-overflow-tooltip />
+                    <el-table-column prop="order_count" label="订单" width="52" align="right" />
+                  </el-table>
+                  <p v-if="!districtListFiltered.length" class="cockpit-smart-map-wrap__empty">
+                    无匹配客户
+                  </p>
+                </template>
+                <div v-else class="cockpit-smart-map-wrap__insights">
+                  <div class="cockpit-smart-map-wrap__insights-body">
+                    <PanelSmartSideInsights
+                      embedded
+                      :payload="smartSideInsights"
+                      :hint="smartMapInsightsHint"
+                    />
+                  </div>
+                  <p class="cockpit-smart-map-wrap__hint cockpit-smart-map-wrap__hint--compact">
+                    地图单击区县下钻后，在此选择客户查看订单明细。
+                  </p>
+                </div>
+              </aside>
+            </div>
           </CockpitPanel>
         </div>
         <div class="cockpit-grid__cell cockpit-grid__cell--r1c3">
@@ -61,7 +118,7 @@
           <PanelTrendLine :data="orderTrendData" />
         </div>
         <div class="cockpit-grid__cell cockpit-grid__cell--r3c3">
-          <PanelGrowth :kpi="kpiLegacy" />
+          <PanelGrowth :metrics="growthMetrics" />
         </div>
       </div>
     </div>
@@ -99,12 +156,16 @@
           <PanelGmvIntraday
             :series="gmvIntradaySeries"
             :ticker-lines="gmvTickerLines"
+            :ticker-feed-items="gmvTickerFeedItems"
+            :backfill-feed-items="gmvTodayBackfillItems"
+            :backfill-loading="gmvTodayBackfillLoading"
             :live-ws-connected="gmvWsConnected"
             :axis-day-start-ts="gmvDayStartTs"
             :axis-max-ts="gmvAxisMaxTs"
             :live-today-patch="gmvLiveTodayPatch"
             :recent-minute-amount="gmvRecentMinuteAmount"
             :recent-minute-count="gmvRecentMinuteCount"
+            :ops-alert-return-ticks="gmvOpsAlertReturnTicks"
           />
         </div>
         <div class="cockpit-grid__cell cockpit-grid__cell--ops-rank">
@@ -135,15 +196,6 @@
       </div>
     </div>
 
-    <el-button
-      v-if="drillAdcode && activeTab === 'smart'"
-      type="primary"
-      class="cockpit-float-back"
-      @click="onBackCity"
-    >
-      返回全市
-    </el-button>
-
     <CockpitViewIoT
       v-else-if="activeTab === 'iot' || activeTab === 'iot3d'"
       :map-mode="activeTab === 'iot3d' ? 'amap3d' : 'amap'"
@@ -172,12 +224,65 @@
         </button>
       </div>
     </nav>
+
+    <el-drawer
+      v-model="drawerOpen"
+      :title="drawerTitle"
+      direction="rtl"
+      size="min(780px, 96vw)"
+      append-to-body
+      destroy-on-close
+      class="cockpit-member-drawer"
+    >
+      <div v-if="drawerRangeLabel" class="cockpit-drawer__range">{{ drawerRangeLabel }}</div>
+      <el-table
+        v-loading="drawerLoading"
+        :data="drawerOrders"
+        size="small"
+        stripe
+        border
+        class="cockpit-drawer__table"
+        @expand-change="onDrawerExpandChange"
+      >
+        <el-table-column type="expand">
+          <template #default="{ row }">
+            <div v-loading="Boolean(expandLoading[row.id])" class="cockpit-drawer__expand">
+              <el-table
+                v-if="(lineItemsByOrder[row.id] || []).length"
+                :data="lineItemsByOrder[row.id]"
+                size="small"
+                border
+              >
+                <el-table-column prop="goods_name" label="商品" min-width="120" show-overflow-tooltip />
+                <el-table-column prop="qty" label="数量" width="88" align="right" />
+                <el-table-column prop="line_amount" label="金额" width="100" align="right" />
+              </el-table>
+              <el-empty
+                v-else-if="!expandLoading[row.id]"
+                description="暂无明细"
+                :image-size="64"
+              />
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="order_sn" label="订单号" min-width="168" show-overflow-tooltip />
+        <el-table-column label="下单时间" min-width="172">
+          <template #default="{ row }">
+            {{ formatOrderTime(row.add_time) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="total_amount" label="金额" min-width="128" align="right" show-overflow-tooltip />
+      </el-table>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import PanelRegion from '../components/cockpit/PanelRegion.vue'
+import axios from 'axios'
+import { ElMessage } from 'element-plus'
+import PanelRegionBeijingDistribution from '../components/cockpit/PanelRegionBeijingDistribution.vue'
+import PanelSmartSideInsights from '../components/cockpit/PanelSmartSideInsights.vue'
 import PanelOrderRank from '../components/cockpit/PanelOrderRank.vue'
 import PanelOrderTrend from '../components/cockpit/PanelOrderTrend.vue'
 import PanelGoodsPie from '../components/cockpit/PanelGoodsPie.vue'
@@ -190,6 +295,10 @@ import PanelGrowth from '../components/cockpit/PanelGrowth.vue'
 import CockpitPanel from '../components/cockpit/CockpitPanel.vue'
 import CockpitBeijingMap from '../components/cockpit/CockpitBeijingMap.vue'
 import CockpitViewIoT from '../components/cockpit/CockpitViewIoT.vue'
+import {
+  enrichMarkersWithDistrict,
+  districtChoroplethFromMarkers,
+} from '../utils/beijingGeoAssign.js'
 import { useCockpitLiveGmv } from '../composables/useCockpitLiveGmv.js'
 import { generateMockVehiclesInBeijing } from '../mock/cockpitVehicles.js'
 import {
@@ -201,9 +310,13 @@ import {
   mockWarehouses,
   TEMP_THRESHOLD,
 } from '../mock/cockpitIoT.js'
+import { sxwLogisticsAxiosParams } from '../utils/sxwLogisticsTenant.js'
 
 const API_BASE = '/api/insights/business'
 const GEO_URL = '/geo/beijing_110000_full.json'
+
+/** 下钻后仅当本区地址落点 ≤ 此值时绘制散点，避免过密难点击 */
+const COCKPIT_MAP_SCATTER_MAX = 40
 
 /** 默认运营台：无地图首屏，较智能驾驶舱更轻；物联 tab 含高德外链，一般最慢 */
 const activeTab = ref('ops')
@@ -220,14 +333,35 @@ const clockText = ref('')
 const orderTrendData = ref([])
 const orderRankData = ref([])
 const goodsData = ref([])
-const regionData = ref([])
+const mapOrderMarkers = ref([])
+/** 智能驾驶舱右侧：今日重点区域 + 客单价分布（cockpit-smart-side-insights） */
+const smartSideInsights = ref(null)
+/** 北京区县 GeoJSON：用于点落区与 choropleth（仅智能 Tab 懒加载） */
+const beijingGeoJson = ref(null)
+const mapDrillAdcode = ref('')
+const mapDrillName = ref('')
+const districtSearch = ref('')
 const kpiRange = ref(null)
 const kpiToday = ref(null)
 /** 智能驾驶舱 PanelKpi / PanelGrowth 用（KPI 来自 kpi-summary：订单/GMV/会员/退单等为业务库实查） */
 const kpiLegacy = ref({})
-const mapVehicles = ref([])
-const drillAdcode = ref('')
+/** 增长指标：今日 vs 昨日 kpi-summary 实算环比 */
+const growthMetrics = ref({
+  orderMomPct: null,
+  gmvMomPct: null,
+  buyerMomPct: null,
+  returnDeltaPp: null,
+})
 const iotVehicles = ref([])
+
+const drawerOpen = ref(false)
+const drawerTitle = ref('')
+const drawerMemberId = ref(null)
+const drawerAddress = ref('')
+const drawerOrders = ref([])
+const drawerLoading = ref(false)
+const lineItemsByOrder = ref({})
+const expandLoading = ref({})
 
 const iotDeviceStatus = ref({})
 const iotAllCameras = ref([])
@@ -239,7 +373,7 @@ const iotWarehouses = ref([])
 /** 仅在需要地图/物联车辆时拉 GeoJSON，避免默认运营台也解析 ~100KB+ 区界 */
 let geoJsonCache = null
 async function ensureGeoAndVehicles() {
-  if (mapVehicles.value.length && iotVehicles.value.length) return
+  if (iotVehicles.value.length) return
   if (!geoJsonCache) {
     try {
       const r = await fetch(GEO_URL)
@@ -249,17 +383,95 @@ async function ensureGeoAndVehicles() {
     }
   }
   if (!geoJsonCache) return
-  if (!mapVehicles.value.length) {
-    mapVehicles.value = generateMockVehiclesInBeijing(52, geoJsonCache)
-  }
   if (!iotVehicles.value.length) {
     iotVehicles.value = generateMockVehiclesInBeijing(28, geoJsonCache)
   }
 }
 
 watch(activeTab, (k) => {
-  if (k === 'smart' || k === 'iot' || k === 'iot3d') void ensureGeoAndVehicles()
+  if (k === 'iot' || k === 'iot3d') void ensureGeoAndVehicles()
+  if (k === 'smart') void ensureBeijingGeoForSmartMap()
 })
+
+async function ensureBeijingGeoForSmartMap() {
+  if (beijingGeoJson.value) return
+  try {
+    const r = await fetch(GEO_URL)
+    if (r.ok) beijingGeoJson.value = await r.json()
+  } catch {
+    beijingGeoJson.value = null
+  }
+}
+
+const mapMarkersEnriched = computed(() => {
+  const raw = mapOrderMarkers.value
+  const geo = beijingGeoJson.value
+  if (!geo?.features?.length) {
+    return raw.map((m) => ({ ...m, district_adcode: '', district_name: '' }))
+  }
+  return enrichMarkersWithDistrict(raw, geo)
+})
+
+const districtMapHeatData = computed(() => {
+  const geo = beijingGeoJson.value
+  if (!geo?.features?.length) return []
+  return districtChoroplethFromMarkers(geo, mapMarkersEnriched.value)
+})
+
+/** 左侧「区域分布」：仅展示有订单的区县（与地图同源），供柱状图全量展示、无 dataZoom */
+const districtRegionBarData = computed(() => {
+  return districtMapHeatData.value
+    .filter((d) => (Number(d.value) || 0) > 0 || (Number(d.order_sum) || 0) > 0)
+    .map((d) => ({
+      district_name: d.name,
+      adcode: d.adcode ? String(d.adcode) : '',
+      gmv: Number(d.value) || 0,
+      order_count: Number(d.order_sum) || 0,
+      customer_count: Number(d.customer_count) || 0,
+    }))
+    .sort((a, b) => b.gmv - a.gmv)
+})
+
+const mapMarkersInDrill = computed(() => {
+  const ad = mapDrillAdcode.value
+  if (!ad) return []
+  return mapMarkersEnriched.value.filter((m) => m.district_adcode === ad)
+})
+
+const showMapOrderScatter = computed(() => {
+  const n = mapMarkersInDrill.value.length
+  return Boolean(mapDrillAdcode.value) && n > 0 && n <= COCKPIT_MAP_SCATTER_MAX
+})
+
+const drillDistrictCustomers = computed(() => {
+  if (!mapDrillAdcode.value) return []
+  return [...mapMarkersInDrill.value].sort(
+    (a, b) => Number(b.order_count || 0) - Number(a.order_count || 0),
+  )
+})
+
+const districtListFiltered = computed(() => {
+  const q = districtSearch.value.trim().toLowerCase()
+  const rows = drillDistrictCustomers.value
+  if (!q) return rows
+  return rows.filter((m) => {
+    const name = (m.customer_name || '').toLowerCase()
+    const addr = (m.address || '').toLowerCase()
+    return name.includes(q) || addr.includes(q)
+  })
+})
+
+function onMapDrill(payload) {
+  mapDrillAdcode.value = payload?.adcode ? String(payload.adcode) : ''
+  mapDrillName.value = (payload?.name || '').trim()
+  districtSearch.value = ''
+}
+
+function onMapBack() {
+  mapDrillAdcode.value = ''
+  mapDrillName.value = ''
+  districtSearch.value = ''
+}
 
 let clockTimer = null
 let opsAutoRetryTimer = null
@@ -281,16 +493,33 @@ const opsSubtitle = computed(() => {
 const smartSubtitle = computed(() => {
   const r = kpiRange.value
   if (r?.start_date && r?.end_date) {
-    return `2D 态势地图演示点位为模拟数据 · 其余图表来自业务库 · 统计区间 ${r.start_date} ~ ${r.end_date}（上海时区）`
+    return `统计区间 · ${r.start_date} ~ ${r.end_date}`
   }
-  return '2D 态势地图演示点位为模拟数据 · 其余图表来自业务库 · 加载成功后显示统计区间与上海时区说明'
+  return '统计区间 · …'
+})
+
+const drawerRangeLabel = computed(() => {
+  const r = kpiRange.value
+  if (r?.start_date && r?.end_date) {
+    return `统计区间：${r.start_date} ~ ${r.end_date}`
+  }
+  return ''
 })
 
 /** 智能驾驶舱：订单排名 / 单品分布 的统计区间（与接口 start/end 一致） */
 const smartRankGoodsHint = computed(() => {
   const r = kpiRange.value
   if (r?.start_date && r?.end_date) {
-    return `排名统计区间：${r.start_date} ~ ${r.end_date}（上海时区）`
+    return `排名 · ${r.start_date} ~ ${r.end_date}`
+  }
+  return ''
+})
+
+/** 订单分布地图侧栏：重点区域 / 客单价（与顶栏一致为区间口径，不用「排名」） */
+const smartMapInsightsHint = computed(() => {
+  const r = kpiRange.value
+  if (r?.start_date && r?.end_date) {
+    return `统计区间 ${r.start_date} ~ ${r.end_date}`
   }
   return ''
 })
@@ -304,18 +533,99 @@ function syncKpiLegacy(kr, kt) {
     avgOrderAmount: t?.avg_ticket ?? r?.avg_ticket ?? '--',
     distinctBuyers: t?.distinct_buyers ?? '--',
     returnRateByAmount: t?.return_rate_by_amount_pct ?? '--',
-    firstOrderMembers: t?.first_order_members ?? '--',
   }
 }
 
-function onMapDrill({ level, adcode }) {
-  if (level === 'district') {
-    drillAdcode.value = adcode || ''
+/** 环比：(今日-昨日)/昨日×100；昨日为 0 且无今日则无意义，返回 null */
+function momPct(curr, prev) {
+  const c = Number(curr)
+  const p = Number(prev)
+  if (!Number.isFinite(c) || !Number.isFinite(p)) return null
+  if (p === 0) return c === 0 ? 0 : null
+  return ((c - p) / p) * 100
+}
+
+/** 退货率变动：昨日% - 今日%（百分点，正数表示退货率下降） */
+function computeGrowthMetrics(todayRow, yesterdayRow) {
+  if (!todayRow || !yesterdayRow) {
+    return { orderMomPct: null, gmvMomPct: null, buyerMomPct: null, returnDeltaPp: null }
+  }
+  const yRet = Number(yesterdayRow.return_rate_by_amount_pct) || 0
+  const tRet = Number(todayRow.return_rate_by_amount_pct) || 0
+  return {
+    orderMomPct: momPct(todayRow.order_count, yesterdayRow.order_count),
+    gmvMomPct: momPct(todayRow.gmv, yesterdayRow.gmv),
+    buyerMomPct: momPct(todayRow.distinct_buyers, yesterdayRow.distinct_buyers),
+    returnDeltaPp: yRet - tRet,
   }
 }
 
-function onBackCity() {
-  drillAdcode.value = ''
+function formatOrderTime(ts) {
+  if (ts == null || ts === '') return '—'
+  const n = Number(ts)
+  if (!Number.isFinite(n)) return String(ts)
+  const d = new Date(n * 1000)
+  if (Number.isNaN(d.getTime())) return '—'
+  const p = (x) => (x < 10 ? `0${x}` : `${x}`)
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+function onDistrictTableRowClick(row) {
+  if (row) void onMapMarkerClick(row)
+}
+
+async function onMapMarkerClick(payload) {
+  const addr = (payload.address || '').trim()
+  drawerTitle.value = addr
+    ? (addr.length > 44 ? `${addr.slice(0, 44)}…` : addr)
+    : (payload.customer_name || '客户')
+  const mc = Number(payload.member_count)
+  const onlyOneMember = Number.isFinite(mc) ? mc === 1 : true
+  drawerMemberId.value = onlyOneMember && payload.member_id != null ? payload.member_id : null
+  drawerAddress.value = addr
+  drawerOpen.value = true
+  drawerLoading.value = true
+  drawerOrders.value = []
+  const r = kpiRange.value
+  const start = r?.start_date || ''
+  const end = r?.end_date || ''
+  try {
+    const q = new URLSearchParams()
+    if (start) q.set('start_date', start)
+    if (end) q.set('end_date', end)
+    if (drawerMemberId.value != null && Number(drawerMemberId.value) > 0) {
+      q.set('member_id', String(drawerMemberId.value))
+    }
+    if (drawerAddress.value) q.set('address', drawerAddress.value)
+    const data = await fetchJson(`${API_BASE}/member-orders-in-range?${q.toString()}`)
+    drawerOrders.value = Array.isArray(data.rows) ? data.rows : []
+  } catch (e) {
+    ElMessage.error(e?.message || '加载订单列表失败')
+    drawerOrders.value = []
+  } finally {
+    drawerLoading.value = false
+  }
+}
+
+async function onDrawerExpandChange(row, expandedRows) {
+  if (!row?.id) return
+  const opened = expandedRows.some((r) => r.id === row.id)
+  if (!opened) return
+  if (lineItemsByOrder.value[row.id]) return
+  expandLoading.value = { ...expandLoading.value, [row.id]: true }
+  try {
+    const data = await fetchJson(`${API_BASE}/order-line-items?order_id=${row.id}`)
+    lineItemsByOrder.value = {
+      ...lineItemsByOrder.value,
+      [row.id]: Array.isArray(data.rows) ? data.rows : [],
+    }
+  } catch {
+    lineItemsByOrder.value = { ...lineItemsByOrder.value, [row.id]: [] }
+  } finally {
+    const next = { ...expandLoading.value }
+    delete next[row.id]
+    expandLoading.value = next
+  }
 }
 
 async function fetchJson(url) {
@@ -353,10 +663,34 @@ function todayDateStr() {
   return `${y}-${m}-${day}`
 }
 
+function yesterdayDateStr() {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 async function loadOpsData() {
   loadErrorOps.value = ''
   const today = todayDateStr()
   const isOps = activeTab.value === 'ops'
+  const yday = yesterdayDateStr()
+
+  /** 与区间 KPI 同一窗口，保证地图/抽屉与 kr 一致 */
+  let krRangePrefetch = null
+  let rangeQuery = ''
+  if (!isOps) {
+    void ensureBeijingGeoForSmartMap()
+    krRangePrefetch = await safeFetchJson(`${API_BASE}/kpi-summary?scope=range`)
+    const kr0 = krRangePrefetch.ok ? krRangePrefetch.data : null
+    if (kr0?.start_date && kr0?.end_date) {
+      const sd = encodeURIComponent(kr0.start_date)
+      const ed = encodeURIComponent(kr0.end_date)
+      rangeQuery = `start_date=${sd}&end_date=${ed}`
+    }
+  }
 
   const fetches = [
     safeFetchJson(`${API_BASE}/orders-top-members${isOps ? `?start_date=${today}&end_date=${today}` : ''}`),
@@ -364,11 +698,20 @@ async function loadOpsData() {
     safeFetchJson(`${API_BASE}/kpi-summary?scope=today`),
   ]
   if (!isOps) {
-    fetches.push(
+    const mapUrl = rangeQuery
+      ? `${API_BASE}/cockpit-customer-map-points?limit=300&${rangeQuery}`
+      : `${API_BASE}/cockpit-customer-map-points?limit=300`
+    const sideUrl = rangeQuery
+      ? `${API_BASE}/cockpit-smart-side-insights?${rangeQuery}`
+      : `${API_BASE}/cockpit-smart-side-insights`
+    const smartTail = [
       safeFetchJson(`${API_BASE}/orders-daily`),
-      safeFetchJson(`${API_BASE}/region-distribution`),
-      safeFetchJson(`${API_BASE}/kpi-summary?scope=range`),
-    )
+      safeFetchJson(mapUrl),
+      Promise.resolve(krRangePrefetch),
+      safeFetchJson(`${API_BASE}/kpi-summary?scope=range&start_date=${yday}&end_date=${yday}`),
+      safeFetchJson(sideUrl),
+    ]
+    fetches.push(...smartTail)
   }
 
   const results = await Promise.all(fetches)
@@ -384,16 +727,39 @@ async function loadOpsData() {
   if (!kt.ok) errParts.push(`今日 KPI：${kt.error}`)
 
   if (!isOps) {
-    const [daily, region, kr] = [results[3], results[4], results[5]]
+    let idx = 3
+    const daily = results[idx++]
+    const mapPts = results[idx++]
+    const kr = results[idx++]
+    const ky = results[idx++]
+    const side = results[idx++]
     orderTrendData.value = daily.ok && Array.isArray(daily.data?.series) ? daily.data.series : []
-    regionData.value = region.ok && Array.isArray(region.data?.rows) ? region.data.rows : []
+    mapOrderMarkers.value = mapPts.ok && Array.isArray(mapPts.data?.points) ? mapPts.data.points : []
+    smartSideInsights.value = side.ok && side.data ? side.data : null
+    mapDrillAdcode.value = ''
+    mapDrillName.value = ''
+    districtSearch.value = ''
     kpiRange.value = kr.ok && kr.data?.scope === 'range' ? kr.data : null
     if (!daily.ok) errParts.push(`订单趋势：${daily.error}`)
-    if (!region.ok) errParts.push(`区域分布：${region.error}`)
+    if (!mapPts.ok) errParts.push(`订单分布地图：${mapPts.error}`)
+    if (mapPts.ok && mapPts.data?.geocode_enabled === false) {
+      errParts.push('订单分布：未配置高德 Web Key，无法解析地址坐标')
+    }
     if (!kr.ok) errParts.push(`区间 KPI：${kr.error}`)
+    if (!ky.ok) errParts.push(`昨日 KPI（增长指标）：${ky.error}`)
+    if (!side.ok) errParts.push(`驾驶舱侧栏洞察：${side.error}`)
     syncKpiLegacy(kr, kt)
+    const t = kt.ok ? kt.data : null
+    const y = ky.ok ? ky.data : null
+    growthMetrics.value = computeGrowthMetrics(t, y)
   } else {
     syncKpiLegacy(null, kt)
+    growthMetrics.value = {
+      orderMomPct: null,
+      gmvMomPct: null,
+      buyerMomPct: null,
+      returnDeltaPp: null,
+    }
   }
 
   loadErrorOps.value = errParts.join(' ')
@@ -417,6 +783,9 @@ const {
   cumulativeSeries: gmvIntradaySeries,
   liveTodayPatch: gmvLiveTodayPatch,
   tickerLines: gmvTickerLines,
+  tickerFeedItems: gmvTickerFeedItems,
+  todayBackfillItems: gmvTodayBackfillItems,
+  todayBackfillLoading: gmvTodayBackfillLoading,
   wsConnected: gmvWsConnected,
   gmvDayStartTs,
   gmvAxisMaxTs,
@@ -430,6 +799,7 @@ const {
   lastWsPingAt: gmvLastWsPingAt,
   wsOpenedAt: gmvWsOpenedAt,
   loadIntraday: gmvLoadIntradayFromComposable,
+  opsAlertReturnTicks: gmvOpsAlertReturnTicks,
 } = useCockpitLiveGmv(opsLiveEnabled, {
   onChartsRefresh: loadOpsData,
   refreshDebounceMs: 8000,
@@ -472,19 +842,72 @@ function scheduleOpsAutoRetry() {
   }, delay)
 }
 
-function initIotMock() {
+/** 物联大屏首格：与智能物流「位置」页同源——先拉车辆列表，优先选 camera_count>0 的车，再 GET …/cameras/live。失败保持 mock。 */
+async function hydrateIotCameraPreviewStream() {
+  const list = iotCameraList.value
+  if (!list.length) return
+
+  try {
+    const { data: vdata } = await axios.get('/api/logistics/vehicles', {
+      params: sxwLogisticsAxiosParams({
+        page: 1,
+        page_size: 100,
+        plateno: '',
+      }),
+    })
+    if (vdata.status && vdata.status !== 200) return
+    const payload = vdata.data
+    const items = payload?.items || (Array.isArray(payload) ? payload : [])
+    const withCam = items.find((r) => Number(r.camera_count) > 0)
+    const veh = withCam || items[0]
+    const vid = veh?.id
+    if (vid == null || vid === '') return
+
+    const { data } = await axios.get(`/api/logistics/vehicles/${vid}/cameras/live`, {
+      params: sxwLogisticsAxiosParams(),
+    })
+    if (data.status && data.status !== 200) return
+    const rows = data.data || []
+    const row = rows.find((r) => r && !r.error && r.hls)
+    if (!row) return
+
+    const h = String(row.hls || '').trim()
+    const http = h.toLowerCase().startsWith('http://') || h.toLowerCase().startsWith('https://')
+
+    list[0] = {
+      ...list[0],
+      vehicle_id: vid,
+      thumbUrl: '',
+      status: 'online',
+      streamUrl: http ? h : '',
+      hls: row.hls,
+      camera_source: row.camera_source,
+      ys7_access_token: row.ys7_access_token,
+      camera_device_id: row.camera_device_id,
+      device_name: row.device_name,
+      error: row.error,
+    }
+    const dn = (row.device_name || '').trim()
+    if (dn) list[0].name = dn
+  } catch (_) {
+    /* 静默 */
+  }
+}
+
+async function initIotMock() {
   iotDeviceStatus.value = mockDeviceStatus()
   iotAllCameras.value = mockAllCameras()
   iotCameraList.value = mockCameraList()
   iotDeviceBindings.value = mockDeviceBindings()
   iotTempHumidity.value = mockTempHumidity24h()
   iotWarehouses.value = mockWarehouses()
+  await hydrateIotCameraPreviewStream()
 }
 
 onMounted(() => {
   tickClock()
   clockTimer = setInterval(tickClock, 1000)
-  initIotMock()
+  void initIotMock()
   /* 不 await：首屏先渲染，图表随接口返回逐项铺满，避免整页「卡死」感 */
   void loadOpsData()
 })
@@ -678,6 +1101,89 @@ onUnmounted(() => {
 }
 
 .cockpit-retry { flex-shrink: 0; }
+
+.cockpit-smart-map-wrap {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 8px;
+}
+
+.cockpit-smart-map-wrap__chart {
+  flex: 0 0 65%;
+  max-width: 65%;
+  min-width: 0;
+  min-height: 220px;
+}
+
+.cockpit-smart-map-wrap__aside {
+  flex: 0 0 35%;
+  max-width: 35%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 4px 2px 4px 10px;
+  border-left: 1px solid rgba(34, 211, 238, 0.15);
+  font-size: 12px;
+  color: rgba(203, 213, 225, 0.92);
+}
+
+.cockpit-smart-map-wrap__insights {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cockpit-smart-map-wrap__insights-body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cockpit-smart-map-wrap__crumb {
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.cockpit-smart-map-wrap__crumb-sep {
+  margin: 0 4px;
+  opacity: 0.5;
+}
+
+.cockpit-smart-map-wrap__search {
+  width: 100%;
+}
+
+.cockpit-smart-map-wrap__hint,
+.cockpit-smart-map-wrap__empty {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.88);
+}
+
+.cockpit-smart-map-wrap__hint--compact {
+  flex-shrink: 0;
+  margin-top: 4px;
+  font-size: 10px;
+  opacity: 0.9;
+}
+
+.cockpit-smart-map-wrap__table {
+  width: 100%;
+}
+
+.cockpit-smart-map-wrap__table :deep(.el-table__row) {
+  cursor: pointer;
+}
 
 .cockpit-grid {
   position: relative;
@@ -933,5 +1439,15 @@ onUnmounted(() => {
   .cockpit-top { grid-template-columns: 1fr; text-align: center; }
   .cockpit-top__side--left,
   .cockpit-top__side--right { justify-content: center; }
+
+  .cockpit-smart-map-wrap {
+    flex-direction: column;
+  }
+  .cockpit-smart-map-wrap__aside {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid rgba(34, 211, 238, 0.12);
+    padding: 10px 0 0;
+  }
 }
 </style>

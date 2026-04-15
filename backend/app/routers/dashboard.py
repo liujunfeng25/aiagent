@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timedelta, time
+from typing import Any, Optional, Type
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func
@@ -7,21 +8,61 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Dataset, TrainTask, Model
-from app.services.inference_stats import get_image_recognition_today
+from app.services.inference_stats import (
+    get_image_recognition_today,
+    get_image_recognition_yesterday,
+)
 
 router = APIRouter()
 
 
+def _now_naive_shanghai() -> datetime:
+    try:
+        from zoneinfo import ZoneInfo
+
+        return datetime.now(ZoneInfo("Asia/Shanghai")).replace(tzinfo=None)
+    except Exception:
+        from datetime import timezone
+
+        return datetime.now(timezone(timedelta(hours=8))).replace(tzinfo=None)
+
+
+def _week_over_week_new_pct(db: Session, entity: Type[Any], now: datetime) -> Optional[float]:
+    """近 7 日新增条数 vs 前 7 日新增条数，环比百分比；两期均为 0 时返回 None（前端不展示假涨幅）。"""
+    d7 = now - timedelta(days=7)
+    d14 = now - timedelta(days=14)
+    this_n = db.query(entity).filter(entity.created_at >= d7).count()
+    prev_n = db.query(entity).filter(entity.created_at >= d14, entity.created_at < d7).count()
+    if prev_n == 0:
+        return None if this_n == 0 else 100.0
+    return round((this_n - prev_n) / prev_n * 100, 1)
+
+
+def _inference_dod_pct() -> Optional[float]:
+    """今日识别次数 vs 昨日，日环比。"""
+    t = get_image_recognition_today()
+    y = get_image_recognition_yesterday()
+    if y == 0:
+        return None if t == 0 else 100.0
+    return round((t - y) / y * 100, 1)
+
+
 @router.get("/stats")
 def get_stats(db: Session = Depends(get_db)):
+    now = _now_naive_shanghai()
     model_count = db.query(Model).count()
     dataset_count = db.query(Dataset).count()
     task_count = db.query(TrainTask).count()
+    inference_today = get_image_recognition_today()
     return {
         "model_count": model_count,
         "dataset_count": dataset_count,
         "task_count": task_count,
-        "inference_today": get_image_recognition_today(),
+        "inference_today": inference_today,
+        "model_trend_pct": _week_over_week_new_pct(db, Model, now),
+        "dataset_trend_pct": _week_over_week_new_pct(db, Dataset, now),
+        "task_trend_pct": _week_over_week_new_pct(db, TrainTask, now),
+        "inference_trend_pct": _inference_dod_pct(),
     }
 
 

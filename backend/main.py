@@ -16,7 +16,20 @@ from fastapi.staticfiles import StaticFiles
 
 from config import TEST_IMAGES_DIR
 from app.database import init_db
-from app.routers import dashboard, datasets, training, models, analysis, system, recognition, categories, documents, insights_business, logistics
+from app.routers import (
+    dashboard,
+    datasets,
+    training,
+    models,
+    analysis,
+    system,
+    recognition,
+    categories,
+    documents,
+    insights_business,
+    logistics,
+    governance_demo,
+)
 from app.xinfadi.routes import router as xinfadi_router
 
 app = FastAPI(title="AI Agent 平台", description="AI 训练与数据智能平台 API")
@@ -42,6 +55,7 @@ app.include_router(categories.router, prefix="/api/categories", tags=["categorie
 app.include_router(documents.router, prefix="/api/doc", tags=["documents"])
 app.include_router(xinfadi_router)
 app.include_router(logistics.router, prefix="/api/logistics", tags=["logistics"])
+app.include_router(governance_demo.router, prefix="/api/governance", tags=["governance_demo"])
 
 # 测试图片静态文件（vegetable-recognition 集成）
 if TEST_IMAGES_DIR.exists():

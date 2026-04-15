@@ -44,30 +44,176 @@
       </p>
       <div class="gmv-intra__main">
         <div ref="chartRef" class="gmv-intra__chart" />
-        <aside class="gmv-intra__feed" aria-label="实时成交">
-          <div class="gmv-intra__feed-head">
-            <div class="gmv-intra__feed-title">实时成交</div>
-            <div class="gmv-intra__feed-kpi">
-              <span>近1分钟 {{ props.recentMinuteCount }} 笔</span>
-              <strong>+¥{{ Number(props.recentMinuteAmount || 0).toLocaleString() }}</strong>
-            </div>
-          </div>
-          <div
-            v-if="parsedTickerLines.length"
-            class="gmv-intra__ticker"
-            aria-live="polite"
-          >
-            <div
-              v-for="(line, i) in parsedTickerLines"
-              :key="i"
-              class="gmv-intra__tick"
-              :class="{ 'gmv-intra__tick--flash': i === 0 }"
+        <aside class="gmv-intra__feed" aria-label="实时成交与补退预警">
+          <div class="gmv-intra__feed-tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              class="gmv-intra__feed-tab"
+              :class="{ 'gmv-intra__feed-tab--active': feedTab === 'gmv' }"
+              :aria-selected="feedTab === 'gmv'"
+              @click="feedTab = 'gmv'"
             >
-              <span class="gmv-intra__tick-time">{{ line.time }}</span>
-              <span class="gmv-intra__tick-amount">{{ line.amount }}</span>
-            </div>
+              实时成交
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="gmv-intra__feed-tab"
+              :class="{ 'gmv-intra__feed-tab--active': feedTab === 'alerts' }"
+              :aria-selected="feedTab === 'alerts'"
+              @click="feedTab = 'alerts'"
+            >
+              补退预警
+              <span v-if="opsAlertsBadge > 0" class="gmv-intra__feed-badge">{{ opsAlertsBadge }}</span>
+            </button>
           </div>
-          <p v-else class="gmv-intra__feed-empty">等待推送…</p>
+          <template v-if="feedTab === 'gmv'">
+            <div class="gmv-intra__feed-head">
+              <div class="gmv-intra__feed-title">实时成交</div>
+              <div class="gmv-intra__feed-kpi">
+                <span>近1分钟 {{ props.recentMinuteCount }} 笔</span>
+                <strong>+¥{{ Number(props.recentMinuteAmount || 0).toLocaleString() }}</strong>
+              </div>
+            </div>
+            <div class="gmv-intra__feed-gmv-body">
+              <div class="gmv-intra__ticker-zone">
+                <div
+                  v-if="displayTickerRows.length"
+                  class="gmv-intra__ticker"
+                  aria-live="polite"
+                >
+                  <div
+                    v-for="(row, i) in displayTickerRows"
+                    :key="row.key"
+                    class="gmv-intra__tick"
+                    :class="{
+                      'gmv-intra__tick--flash': i === 0,
+                      'gmv-intra__tick--clickable': row.orderId,
+                    }"
+                    :role="row.orderId ? 'button' : 'listitem'"
+                    :tabindex="row.orderId ? 0 : -1"
+                    :title="row.orderId ? '点击查看订单详情与明细' : ''"
+                    @click="row.orderId && openOrderPeek(row.orderId)"
+                    @keydown.enter.prevent="row.orderId && openOrderPeek(row.orderId)"
+                    @keydown.space.prevent="row.orderId && openOrderPeek(row.orderId)"
+                  >
+                    <span class="gmv-intra__tick-time">{{ row.time }}</span>
+                    <span class="gmv-intra__tick-amount">{{ row.amount }}</span>
+                  </div>
+                </div>
+                <p v-else class="gmv-intra__feed-empty">等待推送…</p>
+              </div>
+              <div class="gmv-intra__backfill" aria-label="进入页面前的今日成交">
+                <div class="gmv-intra__backfill-head">
+                  <span class="gmv-intra__backfill-title">今日早些时候</span>
+                  <span class="gmv-intra__backfill-sub">进入页面前 · 可滚动</span>
+                </div>
+                <div
+                  v-if="props.backfillLoading"
+                  class="gmv-intra__feed-empty gmv-intra__feed-empty--in-backfill"
+                >
+                  加载中…
+                </div>
+                <div
+                  v-else-if="displayBackfillRows.length"
+                  class="gmv-intra__ticker gmv-intra__ticker--backfill"
+                >
+                  <div
+                    v-for="row in displayBackfillRows"
+                    :key="row.key"
+                    class="gmv-intra__tick gmv-intra__tick--backfill"
+                    :class="{ 'gmv-intra__tick--clickable': row.orderId }"
+                    :role="row.orderId ? 'button' : 'listitem'"
+                    :tabindex="row.orderId ? 0 : -1"
+                    :title="row.orderId ? '点击查看订单详情与明细' : ''"
+                    @click="row.orderId && openOrderPeek(row.orderId)"
+                    @keydown.enter.prevent="row.orderId && openOrderPeek(row.orderId)"
+                    @keydown.space.prevent="row.orderId && openOrderPeek(row.orderId)"
+                  >
+                    <span class="gmv-intra__tick-time">{{ row.time }}</span>
+                    <span class="gmv-intra__tick-amount">{{ row.amount }}</span>
+                  </div>
+                </div>
+                <p
+                  v-else
+                  class="gmv-intra__feed-empty gmv-intra__feed-empty--in-backfill gmv-intra__feed-empty--subtle"
+                >
+                  暂无更早订单
+                </p>
+              </div>
+            </div>
+          </template>
+          <template v-else>
+            <div class="gmv-intra__feed-head gmv-intra__feed-head--alerts">
+              <div class="gmv-intra__feed-title">今日概览</div>
+              <el-button
+                size="small"
+                text
+                type="warning"
+                class="gmv-intra__alert-refresh"
+                :loading="opsAlertsLoading"
+                @click="loadOpsAlerts"
+              >
+                刷新
+              </el-button>
+            </div>
+            <div
+              class="gmv-intra__alert-body"
+              :class="{ 'gmv-intra__alert-body--syncing': opsAlertsLoading && opsAlerts }"
+            >
+              <template v-if="opsAlerts">
+                <div class="gmv-intra__alert-summary">
+                  <div class="gmv-intra__alert-pill gmv-intra__alert-pill--return">
+                    <span class="gmv-intra__alert-pill__lbl">退货待办</span>
+                    <strong>{{ opsAlerts.return_pending?.count ?? 0 }}</strong>
+                    <span class="gmv-intra__alert-pill__sub">笔</span>
+                    <span class="gmv-intra__alert-pill__amt">¥{{ Number(opsAlerts.return_pending?.amount || 0).toLocaleString() }}</span>
+                  </div>
+                  <div class="gmv-intra__alert-pill gmv-intra__alert-pill--sup">
+                    <span class="gmv-intra__alert-pill__lbl">补单订单</span>
+                    <strong>{{ opsAlerts.supplement_today?.linked_count ?? 0 }}</strong>
+                    <span class="gmv-intra__alert-pill__sub">笔</span>
+                    <span class="gmv-intra__alert-pill__meta">分拣未结 {{ opsAlerts.supplement_today?.pending_disorder_count ?? 0 }}</span>
+                  </div>
+                </div>
+                <div class="gmv-intra__alert-cols">
+                  <div class="gmv-intra__alert-col">
+                    <div class="gmv-intra__alert-col__hd">退货待办（最近）</div>
+                    <ul class="gmv-intra__alert-list">
+                      <li v-for="r in (opsAlerts.return_items || []).slice(0, 8)" :key="'r'+r.id" class="gmv-intra__alert-li">
+                        <span class="gmv-intra__alert-li__t">{{ formatRowTime(r.add_time) }}</span>
+                        <span class="gmv-intra__alert-li__sn" :title="r.backorder_sn">{{ r.backorder_sn }}</span>
+                        <span class="gmv-intra__alert-li__amt">¥{{ Number(r.total_amount || 0).toLocaleString() }}</span>
+                      </li>
+                      <li v-if="!(opsAlerts.return_items || []).length" class="gmv-intra__alert-li--empty">暂无</li>
+                    </ul>
+                  </div>
+                  <div class="gmv-intra__alert-col">
+                    <div class="gmv-intra__alert-col__hd">补单订单（最近）</div>
+                    <ul class="gmv-intra__alert-list">
+                      <li v-for="s in (opsAlerts.supplement_items || []).slice(0, 8)" :key="'s'+s.id" class="gmv-intra__alert-li gmv-intra__alert-li--sup">
+                        <span class="gmv-intra__alert-li__t">{{ formatRowTime(s.add_time) }}</span>
+                        <span class="gmv-intra__alert-li__sn" :title="s.order_sn">{{ s.order_sn }}</span>
+                        <span v-if="Number(s.disorder_status) !== 4" class="gmv-intra__alert-li__tag">分拣{{ s.disorder_status }}</span>
+                      </li>
+                      <li v-if="!(opsAlerts.supplement_items || []).length" class="gmv-intra__alert-li--empty">暂无</li>
+                    </ul>
+                  </div>
+                </div>
+                <div v-if="props.opsAlertReturnTicks?.length" class="gmv-intra__alert-ws">
+                  <div class="gmv-intra__alert-ws__hd">通道推送 · 新退货单</div>
+                  <div class="gmv-intra__ticker gmv-intra__ticker--dense">
+                    <div v-for="(ln, j) in props.opsAlertReturnTicks" :key="j" class="gmv-intra__tick gmv-intra__tick--alert">
+                      <span class="gmv-intra__tick-time gmv-intra__tick-time--wide">{{ ln }}</span>
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <p v-else-if="opsAlertsLoading" class="gmv-intra__feed-empty">加载中…</p>
+              <p v-else class="gmv-intra__feed-empty">暂无预警数据</p>
+            </div>
+          </template>
         </aside>
       </div>
     </div>
@@ -143,6 +289,76 @@
         </el-table>
       </div>
     </el-dialog>
+
+    <el-dialog
+      v-model="orderPeekOpen"
+      title="订单详情"
+      width="min(560px, 94vw)"
+      class="gmv-order-peek-dialog"
+      append-to-body
+      destroy-on-close
+      @closed="onOrderPeekClosed"
+    >
+      <div v-loading="orderPeekLoading" class="order-peek">
+        <template v-if="orderPeekHead">
+          <div class="order-peek__head">
+            <div class="order-peek__head-title">订单信息</div>
+            <dl class="order-peek__dl">
+              <div class="order-peek__row">
+                <dt>订单号</dt>
+                <dd>{{ orderPeekHead.order_sn || '—' }}</dd>
+              </div>
+              <div class="order-peek__row">
+                <dt>内部 ID</dt>
+                <dd>{{ orderPeekHead.id ?? '—' }}</dd>
+              </div>
+              <div class="order-peek__row">
+                <dt>下单时间</dt>
+                <dd>{{ formatRowTime(orderPeekHead.add_time) }}</dd>
+              </div>
+              <div class="order-peek__row">
+                <dt>成交额</dt>
+                <dd class="order-peek__money">
+                  ¥{{ Number(orderPeekHead.total_amount || 0).toLocaleString() }}
+                </dd>
+              </div>
+              <div class="order-peek__row">
+                <dt>会员</dt>
+                <dd>
+                  {{ [orderPeekHead.member_realname, orderPeekHead.member_login].filter(Boolean).join(' · ') || '—' }}
+                </dd>
+              </div>
+              <div v-if="orderPeekHead.member_id != null && orderPeekHead.member_id !== ''" class="order-peek__row">
+                <dt>会员 ID</dt>
+                <dd>{{ orderPeekHead.member_id }}</dd>
+              </div>
+            </dl>
+          </div>
+          <div class="order-peek__lines-head">订单明细</div>
+          <p v-if="orderPeekWarn" class="order-peek__warn">{{ orderPeekWarn }}</p>
+          <el-table
+            v-if="orderPeekLines.length"
+            :data="orderPeekLines"
+            size="small"
+            class="order-peek__table"
+            max-height="320"
+            empty-text="暂无商品行"
+          >
+            <el-table-column prop="goods_name" label="商品" min-width="140" show-overflow-tooltip />
+            <el-table-column label="数量" width="88" align="right">
+              <template #default="{ row }">{{ formatQty(row.qty) }}</template>
+            </el-table-column>
+            <el-table-column label="小计" width="112" align="right">
+              <template #default="{ row }">
+                ¥{{ Number(row.line_amount || 0).toLocaleString() }}
+              </template>
+            </el-table-column>
+          </el-table>
+          <p v-else-if="!orderPeekLoading" class="order-peek__empty">暂无明细或未配置明细表</p>
+        </template>
+        <p v-else-if="!orderPeekLoading" class="order-peek__empty">无法加载订单</p>
+      </div>
+    </el-dialog>
   </CockpitPanel>
 </template>
 
@@ -159,6 +375,11 @@ const props = defineProps({
   /** [minute_ts_sec, cumulative_gmv] */
   series: { type: Array, default: () => [] },
   tickerLines: { type: Array, default: () => [] },
+  /** WebSocket 推送的结构化成交（含 order id，可点击） */
+  tickerFeedItems: { type: Array, default: () => [] },
+  /** 进入页面前的今日订单（与 ticker 行字段一致） */
+  backfillFeedItems: { type: Array, default: () => [] },
+  backfillLoading: { type: Boolean, default: false },
   liveWsConnected: { type: Boolean, default: false },
   /** 与 API day_start_ts 一致（秒） */
   axisDayStartTs: { type: Number, default: 0 },
@@ -167,6 +388,37 @@ const props = defineProps({
   liveTodayPatch: { type: Object, default: null },
   recentMinuteAmount: { type: Number, default: 0 },
   recentMinuteCount: { type: Number, default: 0 },
+  /** WebSocket 推送的新退货单行（纯展示字符串） */
+  opsAlertReturnTicks: { type: Array, default: () => [] },
+})
+
+const feedTab = ref('gmv')
+const opsAlerts = ref(null)
+const opsAlertsLoading = ref(false)
+let opsPollTimer = null
+
+const opsAlertsBadge = computed(() => {
+  const o = opsAlerts.value
+  if (!o) return 0
+  const a = Number(o.return_pending?.count || 0)
+  const b = Number(o.supplement_today?.pending_disorder_count || 0)
+  return Math.min(99, a + b)
+})
+
+async function loadOpsAlerts() {
+  opsAlertsLoading.value = true
+  try {
+    const r = await fetch('/api/insights/business/ops-alerts?limit=12')
+    if (r.ok) opsAlerts.value = await r.json()
+  } catch {
+    /* 静默 */
+  } finally {
+    opsAlertsLoading.value = false
+  }
+}
+
+watch(feedTab, (t) => {
+  if (t === 'alerts') void loadOpsAlerts()
 })
 
 function fmtMoney(n) {
@@ -283,6 +535,101 @@ watch(
 )
 
 const parsedTickerLines = computed(() => props.tickerLines.map((line) => parseTickerLine(line)))
+
+function fmtTickClock(ts) {
+  const n = Number(ts)
+  if (!Number.isFinite(n)) return '--:--:--'
+  return new Date(n * 1000).toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+}
+
+/** 优先用含 id 的推送行；否则退回纯字符串 ticker（不可点） */
+const displayTickerRows = computed(() => {
+  const raw = props.tickerFeedItems
+  if (Array.isArray(raw) && raw.length) {
+    return raw.map((it, idx) => {
+      const id = Number(it?.id)
+      const add = Number(it?.add_time)
+      const amt = Number(it?.amount)
+      return {
+        key: `${id}-${add}-${idx}`,
+        orderId: Number.isFinite(id) && id > 0 ? id : null,
+        time: fmtTickClock(add),
+        amount: `+¥${Number.isFinite(amt) ? amt.toLocaleString() : '—'}`,
+      }
+    })
+  }
+  return parsedTickerLines.value.map((line, i) => ({
+    key: `s-${i}`,
+    orderId: null,
+    time: line.time,
+    amount: line.amount,
+  }))
+})
+
+const displayBackfillRows = computed(() => {
+  const raw = props.backfillFeedItems
+  if (!Array.isArray(raw) || !raw.length) return []
+  return raw.map((it, idx) => {
+    const id = Number(it?.id)
+    const add = Number(it?.add_time)
+    const amt = Number(it?.amount)
+    return {
+      key: `bf-${id}-${add}-${idx}`,
+      orderId: Number.isFinite(id) && id > 0 ? id : null,
+      time: fmtTickClock(add),
+      amount: `+¥${Number.isFinite(amt) ? amt.toLocaleString() : '—'}`,
+    }
+  })
+})
+
+const orderPeekOpen = ref(false)
+const orderPeekLoading = ref(false)
+const orderPeekHead = ref(null)
+const orderPeekLines = ref([])
+const orderPeekWarn = ref('')
+
+function onOrderPeekClosed() {
+  orderPeekHead.value = null
+  orderPeekLines.value = []
+  orderPeekWarn.value = ''
+}
+
+async function openOrderPeek(orderId) {
+  const oid = Number(orderId)
+  if (!Number.isFinite(oid) || oid <= 0) return
+  orderPeekOpen.value = true
+  orderPeekLoading.value = true
+  orderPeekHead.value = null
+  orderPeekLines.value = []
+  orderPeekWarn.value = ''
+  try {
+    const [rh, rli] = await Promise.all([
+      fetch(`/api/insights/business/order-head?order_id=${encodeURIComponent(oid)}`),
+      fetch(`/api/insights/business/order-line-items?order_id=${encodeURIComponent(oid)}`),
+    ])
+    if (!rh.ok) {
+      throw new Error(await parseErrorResponse(rh))
+    }
+    orderPeekHead.value = await rh.json()
+    if (rli.ok) {
+      const li = await rli.json()
+      orderPeekLines.value = Array.isArray(li.rows) ? li.rows : []
+      orderPeekWarn.value = typeof li.warning === 'string' ? li.warning : ''
+    } else {
+      orderPeekWarn.value = await parseErrorResponse(rli)
+    }
+  } catch (e) {
+    orderPeekOpen.value = false
+    ElMessage.error(e?.message || '加载订单失败')
+  } finally {
+    orderPeekLoading.value = false
+  }
+}
 
 const chartRef = ref(null)
 const chart = shallowRef(null)
@@ -636,8 +983,14 @@ onMounted(() => {
     ro = new ResizeObserver(() => chart.value?.resize())
     ro.observe(chartRef.value)
   }
+  void loadOpsAlerts()
+  opsPollTimer = setInterval(() => { void loadOpsAlerts() }, 45000)
 })
 onUnmounted(() => {
+  if (opsPollTimer) {
+    clearInterval(opsPollTimer)
+    opsPollTimer = null
+  }
   ro?.disconnect()
   chart.value?.dispose()
   if (cancelKpiTween) {
@@ -844,6 +1197,42 @@ watch(
   background: rgba(15, 23, 42, 0.5);
   overflow: hidden;
 }
+.gmv-intra__feed-tabs {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(250, 204, 21, 0.12);
+}
+.gmv-intra__feed-tab {
+  flex: 1;
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: none;
+  background: rgba(15, 23, 42, 0.65);
+  color: rgba(148, 163, 184, 0.9);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.gmv-intra__feed-tab--active {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fde68a;
+  box-shadow: inset 0 -2px 0 rgba(251, 191, 36, 0.65);
+}
+.gmv-intra__feed-badge {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(248, 113, 113, 0.35);
+  color: #fecaca;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
 .gmv-intra__feed-head {
   flex-shrink: 0;
   display: flex;
@@ -873,6 +1262,88 @@ watch(
   letter-spacing: 0.01em;
   text-shadow: 0 0 10px rgba(251, 191, 36, 0.22);
 }
+.gmv-intra__feed-gmv-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.gmv-intra__ticker-zone {
+  flex: 1 1 0;
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.gmv-intra__ticker-zone > .gmv-intra__ticker {
+  flex: 1;
+  min-height: 0;
+}
+.gmv-intra__ticker-zone > .gmv-intra__feed-empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gmv-intra__backfill {
+  flex: 1 1 0;
+  min-height: 88px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid rgba(250, 204, 21, 0.14);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.2) 0%, rgba(15, 23, 42, 0.45) 100%);
+}
+.gmv-intra__backfill-head {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 10px;
+  padding: 8px 12px 6px;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.1);
+}
+.gmv-intra__backfill-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(125, 211, 252, 0.88);
+}
+.gmv-intra__backfill-sub {
+  font-size: 10px;
+  color: rgba(148, 163, 184, 0.82);
+  letter-spacing: 0.04em;
+}
+.gmv-intra__ticker--backfill {
+  flex: 1;
+  min-height: 0;
+  padding-top: 6px;
+  padding-bottom: 10px;
+}
+.gmv-intra__tick--backfill .gmv-intra__tick-time {
+  color: rgba(186, 198, 214, 0.92);
+}
+.gmv-intra__tick--backfill .gmv-intra__tick-amount {
+  color: rgba(253, 230, 138, 0.88);
+  text-shadow: none;
+}
+.gmv-intra__feed-empty--in-backfill {
+  flex: 1;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 8px 12px 12px;
+}
+.gmv-intra__feed-empty--subtle {
+  color: rgba(148, 163, 184, 0.65);
+  font-size: 12px;
+}
 .gmv-intra__ticker {
   flex: 1;
   min-height: 0;
@@ -899,12 +1370,254 @@ watch(
   color: rgba(254, 240, 138, 0.96);
   text-shadow: 0 0 10px rgba(251, 191, 36, 0.22);
 }
+.gmv-intra__tick--clickable {
+  cursor: pointer;
+  border-radius: 6px;
+  margin: 0 -6px;
+  padding: 4px 6px;
+  outline: none;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.gmv-intra__tick--clickable:hover {
+  background: rgba(67, 204, 248, 0.12);
+  box-shadow: 0 0 0 1px rgba(67, 204, 248, 0.28);
+}
+.gmv-intra__tick--clickable:focus-visible {
+  box-shadow: 0 0 0 2px rgba(67, 204, 248, 0.55);
+}
+.order-peek {
+  min-height: 120px;
+  color: #e2e8f0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.order-peek__head {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.65);
+  border: 1px solid rgba(67, 204, 248, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.order-peek__head-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+  margin-bottom: 12px;
+}
+.order-peek__dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.order-peek__row {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.order-peek__row dt {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(148, 163, 184, 0.95);
+  letter-spacing: 0.02em;
+}
+.order-peek__row dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f8fafc;
+  word-break: break-word;
+}
+.order-peek__money {
+  color: #fde68a !important;
+  font-size: 16px !important;
+  letter-spacing: 0.02em;
+}
+.order-peek__lines-head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+  margin: 4px 0 10px;
+}
+.order-peek__warn {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #fcd34d;
+  background: rgba(120, 53, 15, 0.35);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+}
+.order-peek__empty {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: rgba(148, 163, 184, 0.9);
+}
 .gmv-intra__feed-empty {
   flex: 1;
   margin: 0;
   padding: 14px 12px;
   font-size: 13px;
   color: rgba(148, 163, 184, 0.75);
+}
+.gmv-intra__feed-head--alerts {
+  align-items: center;
+}
+.gmv-intra__alert-refresh {
+  padding: 2px 8px;
+  font-size: 11px;
+  color: #fde68a !important;
+  --el-button-hover-text-color: #fef9c3;
+}
+.gmv-intra__alert-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 0 8px;
+  transition: opacity 0.2s ease;
+}
+.gmv-intra__alert-body--syncing {
+  opacity: 0.9;
+}
+.gmv-intra__alert-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 0;
+}
+.gmv-intra__alert-pill {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 6px 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: rgba(226, 232, 240, 0.88);
+}
+.gmv-intra__alert-pill--return {
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: rgba(127, 29, 29, 0.22);
+}
+.gmv-intra__alert-pill--sup {
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  background: rgba(12, 74, 110, 0.22);
+}
+.gmv-intra__alert-pill__lbl {
+  grid-column: 1 / -1;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+}
+.gmv-intra__alert-pill strong {
+  font-size: 18px;
+  color: #fef9c3;
+}
+.gmv-intra__alert-pill__sub {
+  opacity: 0.75;
+}
+.gmv-intra__alert-pill__amt {
+  grid-column: 1 / -1;
+  font-weight: 600;
+  color: #fecaca;
+}
+.gmv-intra__alert-pill__meta {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  color: rgba(125, 211, 252, 0.9);
+}
+.gmv-intra__alert-cols {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px 0;
+}
+.gmv-intra__alert-col__hd {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(250, 204, 21, 0.65);
+  margin-bottom: 6px;
+}
+.gmv-intra__alert-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.gmv-intra__alert-li {
+  display: grid;
+  grid-template-columns: 108px 1fr auto;
+  gap: 6px;
+  align-items: baseline;
+  padding: 5px 6px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(71, 85, 105, 0.35);
+  font-size: 10px;
+}
+.gmv-intra__alert-li--sup {
+  border-color: rgba(14, 165, 233, 0.22);
+}
+.gmv-intra__alert-li__t {
+  color: rgba(196, 210, 228, 0.85);
+  font-family: ui-monospace, monospace;
+}
+.gmv-intra__alert-li__sn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #e2e8f0;
+}
+.gmv-intra__alert-li__amt {
+  color: #fecaca;
+  font-weight: 600;
+}
+.gmv-intra__alert-li__tag {
+  grid-column: 3;
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(251, 191, 36, 0.2);
+  color: #fde68a;
+}
+.gmv-intra__alert-li--empty {
+  color: rgba(148, 163, 184, 0.65);
+  font-size: 11px;
+  padding: 8px;
+  border: none;
+  background: transparent;
+}
+.gmv-intra__alert-ws {
+  margin: 10px 12px 0;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(100, 116, 139, 0.35);
+}
+.gmv-intra__alert-ws__hd {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: rgba(251, 191, 36, 0.7);
+  margin-bottom: 6px;
+}
+.gmv-intra__ticker--dense {
+  max-height: 120px;
+  padding: 6px 8px;
+}
+.gmv-intra__tick--alert {
+  grid-template-columns: 1fr;
+}
+.gmv-intra__tick-time--wide {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .gmv-intra__tick--flash {
   color: #fef08a;
@@ -983,5 +1696,35 @@ watch(
   --el-table-header-bg-color: rgba(30, 41, 59, 0.95);
   --el-table-text-color: #e2e8f0;
   --el-table-border-color: rgba(51, 65, 85, 0.55);
+}
+.gmv-order-peek-dialog.el-dialog {
+  --el-dialog-bg-color: rgba(15, 23, 42, 0.98);
+  --el-dialog-border-color: rgba(56, 189, 248, 0.35);
+  /* 避免 el-table stripe / 填充色用默认浅色，在深色弹窗里出现白条 */
+  --el-fill-color-lighter: rgba(30, 41, 59, 0.72);
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+.gmv-order-peek-dialog .el-dialog__title {
+  color: #f8fafc;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.gmv-order-peek-dialog .el-dialog__headerbtn .el-dialog__close {
+  color: #94a3b8;
+}
+.gmv-order-peek-dialog .el-table {
+  --el-table-bg-color: rgba(15, 23, 42, 0.5);
+  --el-table-row-hover-bg-color: rgba(56, 189, 248, 0.1);
+  --el-table-tr-bg-color: rgba(15, 23, 42, 0.35);
+  --el-table-header-bg-color: rgba(30, 41, 59, 0.98);
+  --el-table-text-color: #f1f5f9;
+  --el-table-border-color: rgba(51, 65, 85, 0.6);
+  font-size: 13px;
+}
+.gmv-order-peek-dialog .el-table th.el-table__cell {
+  font-weight: 700;
+  color: #bae6fd !important;
 }
 </style>

@@ -12,12 +12,6 @@
       <el-tab-pane label="新发地批发价" name="xinfadi" lazy>
         <XinfadiTrends />
       </el-tab-pane>
-      <el-tab-pane label="缺货与背单" name="backorder" lazy>
-        <BusinessBackorder />
-      </el-tab-pane>
-      <el-tab-pane label="库内价格汇总" name="xfdb" lazy>
-        <BusinessXinfadiDb />
-      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -27,14 +21,12 @@ import { ref, watch, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import XinfadiTrends from './insights/XinfadiTrends.vue'
 import BusinessOrders from './insights/BusinessOrders.vue'
-import BusinessBackorder from './insights/BusinessBackorder.vue'
-import BusinessXinfadiDb from './insights/BusinessXinfadiDb.vue'
 import AiPageHeader from '../components/ui/AiPageHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
 
-const TAB_NAMES = new Set(['orders', 'xinfadi', 'backorder', 'xfdb'])
+const TAB_NAMES = new Set(['orders', 'xinfadi'])
 
 const activeTab = ref('orders')
 

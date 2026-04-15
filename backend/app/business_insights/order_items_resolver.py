@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 
 import pymysql
 
@@ -27,6 +27,8 @@ class OrderItemsSpec:
     price_col: str
     """数量列，按顺序参与 COALESCE"""
     qty_cols: tuple[str, ...]
+    """商品类别列；无则 None（类别分布归为「未分类」）"""
+    category_col: Optional[str] = None
 
 
 _spec_cache: dict[str, Optional[OrderItemsSpec]] = {}
@@ -47,6 +49,26 @@ def _pick_orders_pk(orders_cols: set[str]) -> Optional[str]:
         return "order_id"
     if "id" in orders_cols:
         return "id"
+    return None
+
+
+_CATEGORY_COL_CANDIDATES: Tuple[str, ...] = (
+    "goods_category",
+    "category_name",
+    "cate_name",
+    "product_category",
+    "big_cate_name",
+    "big_category_name",
+    "type_name",
+    "cate_title",
+    "class_name",
+)
+
+
+def _pick_category_col(cols: set[str]) -> Optional[str]:
+    for c in _CATEGORY_COL_CANDIDATES:
+        if c in cols:
+            return c
     return None
 
 
@@ -107,6 +129,7 @@ def _match_orders_items_table(
         goods_name_col=gname,
         price_col=price_col,
         qty_cols=qty_cols,
+        category_col=_pick_category_col(cols),
     )
 
 
@@ -124,6 +147,7 @@ def resolve_order_items_spec(conn, database: str, orders_table: str = S.ORDERS_T
     explicit_name = os.environ.get("INSIGHTS_ORDER_ITEMS_NAME_COL", "").strip()
     explicit_price = os.environ.get("INSIGHTS_ORDER_ITEMS_PRICE_COL", "").strip()
     explicit_qty = os.environ.get("INSIGHTS_ORDER_ITEMS_QTY_COLS", "").strip()
+    explicit_category = os.environ.get("INSIGHTS_ORDER_ITEMS_CATEGORY_COL", "").strip()
 
     with conn.cursor() as cur:
         cur.execute(
@@ -166,6 +190,14 @@ def resolve_order_items_spec(conn, database: str, orders_table: str = S.ORDERS_T
         if not price or not qty_parts:
             _spec_cache[cache_key] = None
             return None
+        cat_col: Optional[str] = None
+        if explicit_category:
+            if explicit_category not in cols:
+                _spec_cache[cache_key] = None
+                return None
+            cat_col = explicit_category
+        else:
+            cat_col = _pick_category_col(cols)
         spec = OrderItemsSpec(
             items_table=explicit_table,
             items_order_fk=fk,
@@ -173,6 +205,7 @@ def resolve_order_items_spec(conn, database: str, orders_table: str = S.ORDERS_T
             goods_name_col=gname,
             price_col=price,
             qty_cols=qty_parts,
+            category_col=cat_col,
         )
         _spec_cache[cache_key] = spec
         return spec

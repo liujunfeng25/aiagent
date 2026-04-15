@@ -60,7 +60,7 @@
               <el-icon><Document /></el-icon>
               <span>票据识别</span>
             </el-menu-item>
-            <el-menu-item index="/insights" title="订单与销售、新发地行情、缺货背单、库内价格指数（近一年）">
+            <el-menu-item index="/insights" title="订单与销售、新发地批发价">
               <el-icon><DataAnalysis /></el-icon>
               <span>数据洞察</span>
             </el-menu-item>
@@ -81,6 +81,14 @@
             <el-menu-item index="/system">
               <el-icon><Setting /></el-icon>
               <span>系统管理</span>
+            </el-menu-item>
+            <el-menu-item index="/system/smart-split-demo" title="智能分单">
+              <el-icon><Cpu /></el-icon>
+              <span>智能分单</span>
+            </el-menu-item>
+            <el-menu-item index="/system/smart-route-demo" title="智能排线">
+              <el-icon><Van /></el-icon>
+              <span>智能排线</span>
             </el-menu-item>
           </el-sub-menu>
         </el-menu>
@@ -114,6 +122,7 @@ import {
   TrendCharts,
   Setting,
   Van,
+  Cpu,
 } from '@element-plus/icons-vue'
 import TechParticleBg from './components/cockpit/TechParticleBg.vue'
 

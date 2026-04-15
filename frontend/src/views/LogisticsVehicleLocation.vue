@@ -13,56 +13,87 @@
         <div class="section-head">
           <span class="section-title">关键指标</span>
         </div>
-        <el-row :gutter="12" class="cards" v-if="rtCard">
-          <el-col :xs="12" :sm="8" :md="4" v-for="c in rtMetrics" :key="c.k">
-            <el-card shadow="hover" class="metric">
-              <div class="lbl">{{ c.label }}</div>
-              <div class="val">{{ c.value }}</div>
-            </el-card>
-          </el-col>
-        </el-row>
+        <div v-if="rtCard" class="cards-grid">
+          <div v-for="c in rtMetrics" :key="c.k" class="metric-card">
+            <div class="metric-card__label">{{ c.label }}</div>
+            <div class="metric-card__value">{{ c.value }}</div>
+            <p class="metric-card__desc">{{ c.desc }}</p>
+            <div class="metric-card__delta">
+              <span class="metric-card__delta-lbl">{{ c.deltaLabel }}</span>
+              <span class="metric-card__delta-val">{{ c.delta }}</span>
+            </div>
+          </div>
+        </div>
         <div v-else-if="rtError" class="hint err">{{ rtError }}</div>
         <div class="section-head section-head--map">
-          <span class="section-title">实时位置</span>
-        </div>
-        <div ref="mapRtRef" class="map-box" />
-        <div class="cam-block">
-          <div class="section-head cam-head">
-            <span class="section-title">车载摄像头</span>
-            <el-button size="small" type="primary" @click="loadCamLive">刷新直播地址</el-button>
+          <div class="section-head__title-wrap">
+            <span class="section-title">实时位置</span>
+            <p class="sxw-hint sxw-hint--inline">
+              与食迅 <code class="sxw-hint__code">location.html</code> 一致：<strong>不在此页做坐标换算</strong>；实时经纬度已由后端按
+              <code class="sxw-hint__code">Gps18Api::lngLatToAmapGcj02</code> 同源逻辑转为高德 GCJ-02。
+              若你直连未转换的原始点，可调试 <code class="sxw-hint__code">?rtCoord=wgs</code> 或 <code class="sxw-hint__code">?rtCoord=bd09</code>。
+            </p>
           </div>
-          <div v-for="cam in camRows" :key="cam.camera_device_id" class="cam-card">
-            <div class="cam-hd">
-              <span>{{ cam.device_name }} · {{ cam.camera_source }}</span>
-            </div>
-            <p v-if="cam.error" class="err">{{ cam.error }}</p>
-            <template v-else>
-              <template v-if="cam.camera_source === 'ys7' && isEzopenUrl(cam.hls)">
-                <p v-if="!cam.ys7_access_token" class="err">萤石播放缺少 accessToken，请点击「刷新直播地址」</p>
-                <div v-else class="cam-video-wrap">
-                  <div :id="ezContainerId(cam)" class="cam-ez" />
+          <el-button size="small" type="primary" :loading="camLoading" @click="loadCamLive">刷新直播地址</el-button>
+        </div>
+        <div class="rt-map-cam">
+          <div class="rt-map-cam__map">
+            <div ref="mapRtRef" class="map-box map-box--rt" />
+          </div>
+          <aside class="rt-map-cam__cams" aria-label="车载摄像头">
+            <p v-if="camOverflowCount > 0" class="cam-overflow-hint">
+              已绑定 {{ camRows.length }} 路，此处固定展示前 {{ CAM_SLOT_COUNT }} 路
+            </p>
+            <div
+              v-for="slot in camSlots"
+              :key="slot.i"
+              class="cam-slot"
+            >
+              <div class="cam-slot__hd">
+                <span>摄像头 {{ slot.i + 1 }}</span>
+                <span v-if="slot.cam" class="cam-slot__meta">{{ slot.cam.device_name || slot.cam.camera_source }}</span>
+              </div>
+              <template v-if="slot.cam">
+                <div class="cam-slot__body">
+                  <p v-if="slot.cam.error" class="err">{{ slot.cam.error }}</p>
+                  <template v-else>
+                    <div class="cam-slot__actions">
+                      <el-button size="small" type="primary" link @click="openCamLightbox(slot.cam)">
+                        放大播放
+                      </el-button>
+                    </div>
+                    <template v-if="slot.cam.camera_source === 'ys7' && isEzopenUrl(slot.cam.hls)">
+                      <p v-if="!slot.cam.ys7_access_token" class="err">萤石播放缺少 accessToken，请点击「刷新直播地址」</p>
+                      <div v-else class="cam-video-wrap cam-video-wrap--slot">
+                        <div :id="ezContainerId(slot.cam)" class="cam-ez" />
+                      </div>
+                    </template>
+                    <div v-else-if="isHttpUrl(slot.cam.hls)" class="cam-video-wrap cam-video-wrap--slot">
+                      <video class="cam-v" controls playsinline :src="slot.cam.hls" />
+                    </div>
+                    <div v-else-if="slot.cam.hls" class="ez ez--compact">{{ slot.cam.hls }}</div>
+                    <div v-if="slot.cam.camera_source === 'ys7' && !slot.cam.error" class="ptz ptz--compact">
+                      <span class="ptz-lbl">云台</span>
+                      <el-button-group>
+                        <el-button size="small" @mousedown="ptzStart(slot.cam, 0)" @mouseup="ptzStop(slot.cam)" @touchstart.prevent="ptzStart(slot.cam, 0)" @touchend.prevent="ptzStop(slot.cam)">上</el-button>
+                        <el-button size="small" @mousedown="ptzStart(slot.cam, 1)" @mouseup="ptzStop(slot.cam)">下</el-button>
+                        <el-button size="small" @mousedown="ptzStart(slot.cam, 2)" @mouseup="ptzStop(slot.cam)">左</el-button>
+                        <el-button size="small" @mousedown="ptzStart(slot.cam, 3)" @mouseup="ptzStop(slot.cam)">右</el-button>
+                      </el-button-group>
+                      <el-select v-model="ptzSpeed" size="small" class="ptz-speed">
+                        <el-option :value="1" label="慢" />
+                        <el-option :value="2" label="快" />
+                      </el-select>
+                    </div>
+                  </template>
                 </div>
               </template>
-              <div v-else-if="isHttpUrl(cam.hls)" class="cam-video-wrap">
-                <video class="cam-v" controls playsinline :src="cam.hls" />
+              <div v-else class="cam-placeholder">
+                <span class="cam-placeholder__title">暂无视频流</span>
+                <span class="cam-placeholder__sub">硬件接入后自动占用此位</span>
               </div>
-              <div v-else-if="cam.hls" class="ez">{{ cam.hls }}</div>
-              <div v-if="cam.camera_source === 'ys7' && !cam.error" class="ptz">
-                <span class="ptz-lbl">云台</span>
-                <el-button-group>
-                  <el-button size="small" @mousedown="ptzStart(cam, 0)" @mouseup="ptzStop(cam)" @touchstart.prevent="ptzStart(cam, 0)" @touchend.prevent="ptzStop(cam)">上</el-button>
-                  <el-button size="small" @mousedown="ptzStart(cam, 1)" @mouseup="ptzStop(cam)">下</el-button>
-                  <el-button size="small" @mousedown="ptzStart(cam, 2)" @mouseup="ptzStop(cam)">左</el-button>
-                  <el-button size="small" @mousedown="ptzStart(cam, 3)" @mouseup="ptzStop(cam)">右</el-button>
-                </el-button-group>
-                <el-select v-model="ptzSpeed" size="small" style="width:80px;margin-left:8px">
-                  <el-option :value="1" label="慢" />
-                  <el-option :value="2" label="快" />
-                </el-select>
-              </div>
-            </template>
-          </div>
-          <el-empty v-if="!camRows.length && !camLoading" description="无绑定摄像头或暂无地址" />
+            </div>
+          </aside>
         </div>
       </el-tab-pane>
 
@@ -126,6 +157,48 @@
         </div>
       </el-tab-pane>
     </el-tabs>
+
+    <el-dialog
+      v-model="camDialogOpen"
+      class="cam-lightbox-dialog"
+      width="min(960px, 94vw)"
+      align-center
+      destroy-on-close
+      :close-on-click-modal="true"
+      @closed="onCamDialogClosed"
+    >
+      <template #header>
+        <span class="cam-lightbox-title">实时画面 · {{ camDialogCam?.device_name || '摄像头' }}</span>
+      </template>
+      <div v-if="camDialogCam" class="cam-lightbox-body">
+        <p v-if="camDialogCam.error" class="err">{{ camDialogCam.error }}</p>
+        <template v-else>
+          <template v-if="camDialogCam.camera_source === 'ys7' && isEzopenUrl(camDialogCam.hls)">
+            <p v-if="!camDialogCam.ys7_access_token" class="err">萤石播放缺少 accessToken，请关闭后点击「刷新直播地址」</p>
+            <div v-else class="cam-video-wrap cam-video-wrap--lightbox">
+              <div :id="ezContainerIdDialog(camDialogCam)" class="cam-ez" />
+            </div>
+          </template>
+          <div v-else-if="isHttpUrl(camDialogCam.hls)" class="cam-video-wrap cam-video-wrap--lightbox">
+            <video class="cam-v" controls playsinline :src="camDialogCam.hls" />
+          </div>
+          <div v-else-if="camDialogCam.hls" class="ez">{{ camDialogCam.hls }}</div>
+          <div v-if="camDialogCam.camera_source === 'ys7' && !camDialogCam.error" class="ptz">
+            <span class="ptz-lbl">云台</span>
+            <el-button-group>
+              <el-button size="small" @mousedown="ptzStart(camDialogCam, 0)" @mouseup="ptzStop(camDialogCam)" @touchstart.prevent="ptzStart(camDialogCam, 0)" @touchend.prevent="ptzStop(camDialogCam)">上</el-button>
+              <el-button size="small" @mousedown="ptzStart(camDialogCam, 1)" @mouseup="ptzStop(camDialogCam)">下</el-button>
+              <el-button size="small" @mousedown="ptzStart(camDialogCam, 2)" @mouseup="ptzStop(camDialogCam)">左</el-button>
+              <el-button size="small" @mousedown="ptzStart(camDialogCam, 3)" @mouseup="ptzStop(camDialogCam)">右</el-button>
+            </el-button-group>
+            <el-select v-model="ptzSpeed" size="small" class="ptz-speed-dialog">
+              <el-option :value="1" label="慢" />
+              <el-option :value="2" label="快" />
+            </el-select>
+          </div>
+        </template>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -135,6 +208,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
 import { sxwLogisticsAxiosParams } from '../utils/sxwLogisticsTenant'
+import { wgs84ToGcj02, bd09ToGcj02 } from '../utils/chinaCoordTransform'
 
 const route = useRoute()
 const vehicleId = computed(() => Number(route.params.id))
@@ -149,23 +223,82 @@ let mkRt = null
 let polyHi = null
 let mkPlay = null
 
+const CAM_SLOT_COUNT = 3
+
 const rtCard = ref(null)
 const rtError = ref('')
 const rtMetrics = computed(() => {
   const x = rtCard.value
   if (!x) return []
   return [
-    { k: 't', label: '温度', value: x.temperature || '—' },
-    { k: 'h', label: '湿度', value: x.humidity || '—' },
-    { k: 's', label: '速度', value: x.speed != null ? `${x.speed} km/h` : '—' },
-    { k: 'p', label: '电量', value: x.power || '—' },
-    { k: 'tm', label: '时间', value: x.lastDataTime || '—' },
+    {
+      k: 't',
+      label: '温度',
+      value: x.temperature != null && x.temperature !== '' ? String(x.temperature) : '—',
+      desc: '车厢温度 ·℃',
+      deltaLabel: '较上一包',
+      delta: '—',
+    },
+    {
+      k: 'h',
+      label: '湿度',
+      value: x.humidity != null && x.humidity !== '' ? String(x.humidity) : '—',
+      desc: '相对湿度 · %RH',
+      deltaLabel: '较上一包',
+      delta: '—',
+    },
+    {
+      k: 's',
+      label: '速度',
+      value: x.speed != null && x.speed !== '' ? `${x.speed} km/h` : '—',
+      desc: 'GNSS / 终端推算',
+      deltaLabel: '较上一包',
+      delta: '—',
+    },
+    {
+      k: 'p',
+      label: '电量',
+      value: x.power != null && x.power !== '' ? String(x.power) : '—',
+      desc: '车载电压 · 演示字段',
+      deltaLabel: '较上一包',
+      delta: '—',
+    },
+    {
+      k: 'tm',
+      label: '时间',
+      value: x.lastDataTime || '—',
+      desc: '北斗 / 平台上报时刻',
+      deltaLabel: '环比口径',
+      delta: '待统计',
+    },
   ]
 })
 
 const camRows = ref([])
 const camLoading = ref(false)
 const ptzSpeed = ref(1)
+
+/** 居中放大播放（萤石单实例：弹窗打开时销毁侧栏同路播放器，关闭后恢复） */
+const camDialogOpen = ref(false)
+const camDialogCam = ref(null)
+
+const camSlots = computed(() => {
+  const rows = camRows.value || []
+  return Array.from({ length: CAM_SLOT_COUNT }, (_, i) => ({
+    i,
+    cam: rows[i] || null,
+  }))
+})
+
+const camOverflowCount = computed(() => Math.max(0, (camRows.value?.length || 0) - CAM_SLOT_COUNT))
+
+function resizeRtMap() {
+  if (mapRt && typeof mapRt.resize === 'function') {
+    try {
+      mapRt.resize()
+    } catch (_) { /* ignore */ }
+  }
+}
 
 const hist = reactive({ start: '', end: '', forceDemo: false, notice: '', demoMsg: '' })
 const histPts = ref([])
@@ -196,6 +329,38 @@ function isEzopenUrl(u) {
 function ezContainerId(cam) {
   return `ys7-ez-${cam.camera_device_id}`
 }
+
+function ezContainerIdDialog(cam) {
+  return `ys7-ez-dialog-${cam.camera_device_id}`
+}
+
+function openCamLightbox(cam) {
+  if (!cam || cam.error) return
+  if (cam.camera_source === 'ys7' && isEzopenUrl(cam.hls) && !cam.ys7_access_token) {
+    ElMessage.warning('请先点击「刷新直播地址」获取播放凭证')
+    return
+  }
+  if (cam.camera_source === 'ys7' && isEzopenUrl(cam.hls) && cam.ys7_access_token) {
+    destroyYs7EzPlayer(cam.camera_device_id)
+  }
+  camDialogCam.value = cam
+  camDialogOpen.value = true
+}
+
+function onCamDialogClosed() {
+  const cam = camDialogCam.value
+  if (cam && cam.camera_source === 'ys7' && isEzopenUrl(cam.hls) && cam.ys7_access_token) {
+    destroyYs7EzPlayer(cam.camera_device_id)
+  }
+  camDialogCam.value = null
+  nextTick(() => syncYs7EzUIKitPlayers())
+}
+
+watch(camDialogOpen, async (open) => {
+  if (!open) return
+  await nextTick()
+  await syncYs7DialogPlayer()
+})
 
 const ys7EzPlayers = new Map()
 let ezUIKitScriptPromise = null
@@ -235,12 +400,46 @@ function destroyAllYs7EzPlayers() {
   }
 }
 
+async function syncYs7DialogPlayer() {
+  const cam = camDialogCam.value
+  if (!camDialogOpen.value || !cam || cam.error) return
+  if (cam.camera_source !== 'ys7' || !isEzopenUrl(cam.hls) || !cam.ys7_access_token) return
+  await nextTick()
+  const elId = ezContainerIdDialog(cam)
+  const el = document.getElementById(elId)
+  if (!el) return
+  destroyYs7EzPlayer(cam.camera_device_id)
+  try {
+    await ensureEzUIKitScript()
+    const wrap = el.closest('.cam-video-wrap--lightbox')
+    const w = Math.max(640, wrap?.clientWidth || el.clientWidth || 880)
+    const h = Math.max(360, Math.floor((w * 9) / 16))
+    const player = new window.EZUIKit.EZUIKitPlayer({
+      id: elId,
+      accessToken: cam.ys7_access_token,
+      url: cam.hls.trim(),
+      width: w,
+      height: h,
+    })
+    ys7EzPlayers.set(cam.camera_device_id, player)
+  } catch (e) {
+    ElMessage.error('萤石 EZUIKit 加载失败，请检查网络或稍后刷新')
+  }
+}
+
 async function syncYs7EzUIKitPlayers() {
   await nextTick()
   const cams = camRows.value || []
   const keep = new Set()
   for (const cam of cams) {
     if (cam.error || cam.camera_source !== 'ys7' || !isEzopenUrl(cam.hls) || !cam.ys7_access_token) {
+      continue
+    }
+    if (
+      camDialogOpen.value
+      && camDialogCam.value
+      && cam.camera_device_id === camDialogCam.value.camera_device_id
+    ) {
       continue
     }
     keep.add(cam.camera_device_id)
@@ -250,8 +449,10 @@ async function syncYs7EzUIKitPlayers() {
     destroyYs7EzPlayer(cam.camera_device_id)
     try {
       await ensureEzUIKitScript()
-      const w = Math.max(320, el.clientWidth || 640)
-      const h = Math.max(280, Math.floor((w * 9) / 16))
+      const w = Math.max(160, el.clientWidth || 280)
+      let h = Math.floor((w * 9) / 16)
+      h = Math.min(h, 200)
+      h = Math.max(h, 72)
       const player = new window.EZUIKit.EZUIKitPlayer({
         id: elId,
         accessToken: cam.ys7_access_token,
@@ -264,6 +465,9 @@ async function syncYs7EzUIKitPlayers() {
       ElMessage.error('萤石 EZUIKit 加载失败，请检查网络或稍后刷新')
     }
   }
+  if (camDialogOpen.value && camDialogCam.value?.camera_device_id != null) {
+    keep.add(camDialogCam.value.camera_device_id)
+  }
   for (const id of [...ys7EzPlayers.keys()]) {
     if (!keep.has(id)) destroyYs7EzPlayer(id)
   }
@@ -272,6 +476,11 @@ async function syncYs7EzUIKitPlayers() {
 watch(camRows, () => {
   syncYs7EzUIKitPlayers()
 }, { deep: true, flush: 'post' })
+
+watch(camRows, async () => {
+  await nextTick()
+  resizeRtMap()
+}, { deep: true })
 
 onMounted(async () => {
   await initMapRt()
@@ -305,6 +514,8 @@ async function initMapRt() {
     zoom: 13,
     center: [116.397428, 39.90923],
   })
+  await nextTick()
+  resizeRtMap()
 }
 
 async function initMapHi() {
@@ -344,14 +555,23 @@ async function loadRealtime() {
       return
     }
     rtCard.value = row
-    const lng = parseFloat(row.longitude)
-    const lat = parseFloat(row.latitude)
-    if (mapRt && lng && lat) {
+    let lng = parseFloat(row.longitude)
+    let lat = parseFloat(row.latitude)
+    if (mapRt && Number.isFinite(lng) && Number.isFinite(lat)) {
+      /* 默认与 sxw 一致：realtime-sxw 已在服务端 _lng_lat_to_amap_gcj02 转出 GCJ-02，禁止二次转换 */
+      const mode = String(route.query.rtCoord || '').toLowerCase()
+      if (mode === 'wgs' || mode === 'gps') {
+        ;[lng, lat] = wgs84ToGcj02(lng, lat)
+      } else if (mode === 'bd09' || mode === 'baidu') {
+        ;[lng, lat] = bd09ToGcj02(lng, lat)
+      }
       if (mkRt) mapRt.remove(mkRt)
       mkRt = new window.AMap.Marker({ position: [lng, lat] })
       mapRt.add(mkRt)
       mapRt.setCenter([lng, lat])
     }
+    await nextTick()
+    resizeRtMap()
   } catch (e) {
     rtError.value = e.response?.data?.detail || e.message || '加载失败'
   }
@@ -639,6 +859,28 @@ function drawHist() {
 .section-head--map {
   margin-top: 24px;
 }
+.section-head__title-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.sxw-hint--inline {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #64748b;
+  max-width: 56rem;
+}
+.sxw-hint__code {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+}
 .section-title {
   font-size: 11px;
   font-weight: 700;
@@ -646,46 +888,265 @@ function drawHist() {
   text-transform: uppercase;
   color: #64748b;
 }
-.cards {
-  margin-bottom: 4px;
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 8px;
 }
-.cards :deep(.el-card) {
+@media (max-width: 1200px) {
+  .cards-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.metric-card {
+  background: #fff;
   border-radius: 12px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  padding: 14px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 118px;
+  transition: box-shadow 0.2s ease;
 }
-.cards :deep(.el-card:hover) {
+.metric-card:hover {
   box-shadow: 0 6px 20px rgba(15, 23, 42, 0.1);
 }
-.metric :deep(.el-card__body) {
-  padding: 16px 18px;
-}
-.metric .lbl {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+.metric-card__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: #64748b;
 }
-.metric .val {
-  font-size: 22px;
+.metric-card__value {
+  font-size: clamp(18px, 2.2vw, 22px);
   font-weight: 700;
   color: #0f172a;
-  margin-top: 8px;
-  line-height: 1.25;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
 }
+.metric-card__desc {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #64748b;
+}
+.metric-card__delta {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+.metric-card__delta-lbl {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.metric-card__delta-val {
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.rt-map-cam {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 8px;
+  min-height: clamp(400px, 52vh, 560px);
+}
+.rt-map-cam__map {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rt-map-cam__cams {
+  flex: 0 0 min(300px, 30vw);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 260px;
+}
+.cam-overflow-hint {
+  margin: 0;
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.35;
+}
+.cam-slot {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+.cam-slot__actions {
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+.cam-slot__hd {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+.cam-slot__meta {
+  font-size: 10px;
+  font-weight: 500;
+  color: #64748b;
+  word-break: break-all;
+}
+.cam-slot__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cam-placeholder {
+  flex: 1;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 12px;
+  background: repeating-linear-gradient(
+    -45deg,
+    #f1f5f9,
+    #f1f5f9 8px,
+    #e2e8f0 8px,
+    #e2e8f0 16px
+  );
+  color: #64748b;
+  text-align: center;
+}
+.cam-placeholder__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+.cam-placeholder__sub {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.cam-video-wrap--slot {
+  padding-bottom: 0;
+  height: 120px;
+  min-height: 100px;
+  border-radius: 8px;
+}
+.ez--compact {
+  font-size: 11px;
+  padding: 8px 10px;
+  margin: 0;
+}
+.ptz--compact {
+  margin-top: 0;
+  flex-shrink: 0;
+}
+.ptz-speed {
+  width: 72px;
+  margin-left: 6px;
+}
+.cam-lightbox-title {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 15px;
+}
+.cam-lightbox-body {
+  padding: 0 2px 4px;
+}
+.cam-video-wrap--lightbox {
+  padding-bottom: 0;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  max-height: min(70vh, 620px);
+  height: auto;
+  border-radius: 10px;
+}
+.ptz-speed-dialog {
+  width: 88px;
+  margin-left: 8px;
+}
+.loc-page :deep(.cam-lightbox-dialog.el-dialog) {
+  border-radius: 14px;
+}
+.loc-page :deep(.cam-lightbox-dialog .el-dialog__header) {
+  padding-bottom: 8px;
+  margin-right: 0;
+}
+.loc-page :deep(.cam-lightbox-dialog .el-dialog__body) {
+  padding-top: 4px;
+}
+@media (max-width: 960px) {
+  .rt-map-cam {
+    flex-direction: column;
+    min-height: 0;
+  }
+  .rt-map-cam__cams {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .cam-slot {
+    flex: 1 1 calc(33.333% - 8px);
+    min-width: 160px;
+    min-height: 200px;
+  }
+}
+@media (max-width: 600px) {
+  .rt-map-cam__cams {
+    flex-direction: column;
+  }
+  .cam-slot {
+    flex: none;
+    min-height: 180px;
+  }
+}
+
 .map-box {
   width: 100%;
   min-height: 420px;
   height: clamp(380px, 52vh, 520px);
   border-radius: 12px;
-  margin: 0 0 4px;
+  margin: 0;
   border: 1px solid rgba(15, 23, 42, 0.1);
   box-shadow: 0 2px 16px rgba(15, 23, 42, 0.07);
   overflow: hidden;
   background: #e2e8f0;
+}
+.map-box--rt {
+  flex: 1;
+  width: 100%;
+  min-height: clamp(400px, 52vh, 560px);
+  height: auto;
 }
 /* sxw #mapHistory：固定 400px 高 */
 .map-box--history {
@@ -798,26 +1259,6 @@ function drawHist() {
 .playback-addr-row {
   margin-top: 4px;
   color: #555;
-}
-.cam-block {
-  margin-top: 8px;
-}
-.cam-block .section-head {
-  margin-top: 8px;
-}
-.cam-card {
-  background: #fff;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 12px;
-  padding: 16px 18px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 14px rgba(15, 23, 42, 0.05);
-}
-.cam-hd {
-  margin-bottom: 12px;
-  font-weight: 600;
-  font-size: 14px;
-  color: #334155;
 }
 .cam-video-wrap {
   position: relative;

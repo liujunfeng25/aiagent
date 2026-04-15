@@ -18,10 +18,10 @@
     </div>
 
     <div class="metrics-grid">
-      <InferenceMetric label="模型数量" :value="stats.model_count" :trend="9.3" />
-      <InferenceMetric label="数据集数量" :value="stats.dataset_count" :trend="5.4" />
-      <InferenceMetric label="训练任务数" :value="stats.task_count" :trend="2.1" />
-      <InferenceMetric label="今日推理次数" :value="stats.inference_today" :trend="11.7" />
+      <InferenceMetric label="模型数量" :value="stats.model_count" :show-trend="false" />
+      <InferenceMetric label="数据集数量" :value="stats.dataset_count" :show-trend="false" />
+      <InferenceMetric label="训练任务数" :value="stats.task_count" :show-trend="false" />
+      <InferenceMetric label="今日推理次数" :value="stats.inference_today" :show-trend="false" />
     </div>
 
     <div class="model-grid">
@@ -71,7 +71,12 @@ import InferenceMetric from '../components/ui/InferenceMetric.vue'
 import ModelStatusCard from '../components/ui/ModelStatusCard.vue'
 import RealtimeSignal from '../components/ui/RealtimeSignal.vue'
 
-const stats = ref({ model_count: 0, dataset_count: 0, task_count: 0, inference_today: 0 })
+const stats = ref({
+  model_count: 0,
+  dataset_count: 0,
+  task_count: 0,
+  inference_today: 0,
+})
 const recentTasks = ref([])
 const trendChartRef = ref(null)
 const topChartRef = ref(null)
