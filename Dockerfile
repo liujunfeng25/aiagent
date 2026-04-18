@@ -12,6 +12,9 @@ RUN npm config set registry https://registry.npmmirror.com \
     || (rm -rf node_modules && npm install --legacy-peer-deps --no-audit --no-fund) \
     && npm install @vueuse/core@12.0.0 @vueuse/shared@12.0.0 @vueuse/metadata@12.0.0 --legacy-peer-deps --force --no-audit --no-fund
 COPY frontend/ ./
+# 天枢大屏：子应用静态资源在 frontend/public/tianshu（构建镜像前于宿主机执行
+#   ./scripts/sync-beijing-tianshu.sh
+# 将 beijing 项目以 base=/tianshu/ 打入 public/tianshu，以下 npm build 会一并拷贝进 dist。
 # Cesium ion 影像/地形（构建期注入，勿把真实 Token 写入仓库）
 ARG VITE_CESIUM_ION_TOKEN
 ENV VITE_CESIUM_ION_TOKEN=$VITE_CESIUM_ION_TOKEN

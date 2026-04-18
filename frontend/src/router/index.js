@@ -14,6 +14,12 @@ const routes = [
     component: () => import('../views/DataCockpit.vue'),
     meta: { title: '数据驾驶舱', fullBleed: true },
   },
+  {
+    path: '/tianshu',
+    name: 'TianshuBigScreen',
+    component: () => import('../views/TianshuBigScreen.vue'),
+    meta: { title: '天枢大屏', fullBleed: true },
+  },
   { path: '/', name: 'Dashboard', component: () => import('../views/Dashboard.vue'), meta: { title: '工作台' } },
   { path: '/datasets', name: 'Datasets', component: () => import('../views/Datasets.vue'), meta: { title: '数据集' } },
   { path: '/categories', name: 'Categories', component: () => import('../views/Categories.vue'), meta: { title: '类别管理' } },

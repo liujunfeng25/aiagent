@@ -14,6 +14,8 @@ import pymysql
 from app.business_insights import schema as S
 from app.business_insights.order_items_resolver import (
     build_qty_sql,
+    coalesce_item_goods_trim_sql,
+    resolve_goods_catalog_spec,
     resolve_order_items_spec,
 )
 from app.services.amap_geocode import amap_key
@@ -119,6 +121,9 @@ def orders_daily(
         description="YYYY-MM-DD；未传时与 end 组成窗口，驾驶舱默认见 COCKPIT_DEFAULT_RANGE_DAYS",
     ),
     end_date: Optional[str] = Query(None),
+    district_name: Optional[str] = Query(
+        None, description="可选：仅统计收货地址匹配该区县的订单"
+    ),
 ):
     cfg = _cfg_or_503()
     start, end = _parse_range(
@@ -126,12 +131,14 @@ def orders_daily(
     )
     t0, t1 = _day_start_ts(start), _day_end_ts(end)
     ot, ta = S.ORDERS_TIME_COL, S.ORDERS_AMOUNT_COL
+    maddr = S.ORDERS_MEMBER_ADDRESS_COL
+    addr_fr, addr_params = _orders_addr_filter_fragment(maddr, None, district_name)
     sql = f"""
         SELECT DATE(FROM_UNIXTIME(`{ot}`)) AS day,
                COUNT(*) AS order_count,
                COALESCE(SUM(`{ta}`), 0) AS gmv
         FROM `{S.ORDERS_TABLE}`
-        WHERE `{ot}` >= %s AND `{ot}` <= %s
+        WHERE `{ot}` >= %s AND `{ot}` <= %s{addr_fr}
         GROUP BY DATE(FROM_UNIXTIME(`{ot}`))
         ORDER BY day
     """
@@ -139,7 +146,7 @@ def orders_daily(
     try:
         try:
             with conn.cursor() as cur:
-                cur.execute(sql, (t0, t1))
+                cur.execute(sql, (t0, t1) + addr_params)
                 rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
         except pymysql.MySQLError as e:
             raise HTTPException(
@@ -164,6 +171,9 @@ def orders_top_members(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
     limit: int = Query(S.TOP_MEMBERS_DEFAULT, ge=1, le=S.TOP_MEMBERS_MAX),
+    district_name: Optional[str] = Query(
+        None, description="可选：仅统计收货地址匹配该区县的订单"
+    ),
 ):
     cfg = _cfg_or_503()
     start, end = _parse_range(
@@ -172,13 +182,15 @@ def orders_top_members(
     t0, t1 = _day_start_ts(start), _day_end_ts(end)
     ot = S.ORDERS_TIME_COL
     mid, mname, ta = S.ORDERS_MEMBER_COL, S.ORDERS_MEMBER_NAME_COL, S.ORDERS_AMOUNT_COL
+    maddr = S.ORDERS_MEMBER_ADDRESS_COL
+    addr_fr, addr_params = _orders_addr_filter_fragment(maddr, None, district_name)
     sql = f"""
         SELECT `{mid}` AS member_id,
                MAX(`{mname}`) AS member_name,
                COUNT(*) AS order_count,
                COALESCE(SUM(`{ta}`), 0) AS gmv
         FROM `{S.ORDERS_TABLE}`
-        WHERE `{ot}` >= %s AND `{ot}` <= %s
+        WHERE `{ot}` >= %s AND `{ot}` <= %s{addr_fr}
         GROUP BY `{mid}`
         ORDER BY gmv DESC
         LIMIT %s
@@ -187,7 +199,7 @@ def orders_top_members(
     try:
         try:
             with conn.cursor() as cur:
-                cur.execute(sql, (t0, t1, limit))
+                cur.execute(sql, (t0, t1) + addr_params + (limit,))
                 rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
         except pymysql.MySQLError as e:
             raise HTTPException(
@@ -288,6 +300,9 @@ def goods_top(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
     limit: int = Query(S.TOP_GOODS_DEFAULT, ge=1, le=S.TOP_GOODS_MAX),
+    district_name: Optional[str] = Query(
+        None, description="可选：仅统计收货地址匹配该区县的订单"
+    ),
 ):
     """单品排名：按商品名称分组，SUM 数量与金额，取 TOP N。明细表通过 INFORMATION_SCHEMA 自动识别。"""
     cfg = _cfg_or_503()
@@ -297,6 +312,8 @@ def goods_top(
     t0, t1 = _day_start_ts(start), _day_end_ts(end)
     ot = S.ORDERS_TIME_COL
     otbl = S.ORDERS_TABLE
+    maddr = S.ORDERS_MEMBER_ADDRESS_COL
+    addr_fr, addr_params = _orders_addr_filter_fragment(maddr, "o", district_name)
     conn = _mysql_connect(cfg)
     try:
         spec = resolve_order_items_spec(conn, cfg.database, otbl)
@@ -320,14 +337,14 @@ def goods_top(
                    COALESCE(SUM(g.`{gp}` * ({qty_expr})), 0) AS total_amount
             FROM `{itbl}` g
             JOIN `{otbl}` o ON g.`{join_fk}` = o.`{opk}`
-            WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s
+            WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s{addr_fr}
             GROUP BY g.`{gn}`
             ORDER BY total_amount DESC
             LIMIT %s
         """
         try:
             with conn.cursor() as cur:
-                cur.execute(sql, (t0, t1, limit))
+                cur.execute(sql, (t0, t1) + addr_params + (limit,))
                 rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
         except pymysql.MySQLError as e:
             raise HTTPException(
@@ -614,6 +631,38 @@ def _beijing_district_case_sql(addr_col: str) -> str:
     return "CASE " + " ".join(parts) + " ELSE NULL END"
 
 
+# 与地图 GeoJSON 命名及白名单一致；雄安三县等可在此扩展
+_DISTRICT_NAMES_ALLOWED: frozenset[str] = frozenset(
+    _BJ_DISTRICT_LIKE_ORDER + ("容城县", "雄县", "安新县"),
+)
+
+
+def _normalize_district_name_param(district_name: Optional[str]) -> Optional[str]:
+    if district_name is None:
+        return None
+    t = str(district_name).strip()
+    if not t or t not in _DISTRICT_NAMES_ALLOWED:
+        return None
+    return t
+
+
+def _orders_addr_filter_fragment(
+    addr_col: str,
+    table_alias: Optional[str],
+    district_name: Optional[str],
+) -> tuple[str, tuple[Any, ...]]:
+    """按收货地址关键字过滤（与 CASE 推断一致）；非法区县名忽略。"""
+    d = _normalize_district_name_param(district_name)
+    if not d:
+        return "", ()
+    pref = f"{table_alias}." if table_alias else ""
+    ref = f"{pref}`{addr_col}`"
+    return (
+        f" AND NULLIF(TRIM({ref}), '') IS NOT NULL AND TRIM({ref}) LIKE %s",
+        (f"%{d}%",),
+    )
+
+
 def _prev_range(start: date, end: date) -> tuple[date, date]:
     span_days = (end - start).days + 1
     prev_end = start - timedelta(days=1)
@@ -625,6 +674,10 @@ def _prev_range(start: date, end: date) -> tuple[date, date]:
 def cockpit_smart_side_insights(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
+    district_name: Optional[str] = Query(
+        None,
+        description="可选：仅统计该区县（与 GeoJSON properties.name / 地址关键字一致）",
+    ),
 ):
     """智能驾驶舱地图侧栏：重点区域（区县 GMV + 环比）· 客单价分布；区县由地址关键字推断。"""
     cfg = _cfg_or_503()
@@ -639,6 +692,9 @@ def cockpit_smart_side_insights(
     ta = S.ORDERS_AMOUNT_COL
     maddr = S.ORDERS_MEMBER_ADDRESS_COL
     dcase = _beijing_district_case_sql(maddr)
+    d_only = _normalize_district_name_param(district_name)
+    dist_eq_sql = " AND t.district_name = %s" if d_only else ""
+    addr_fr, addr_params = _orders_addr_filter_fragment(maddr, "o", district_name)
 
     sql_district = f"""
         SELECT t.district_name AS district_name,
@@ -651,7 +707,7 @@ def cockpit_smart_side_insights(
             WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s
               AND NULLIF(TRIM(o.`{maddr}`), '') IS NOT NULL
         ) t
-        WHERE t.district_name IS NOT NULL
+        WHERE t.district_name IS NOT NULL{dist_eq_sql}
         GROUP BY t.district_name
     """
     sql_ticket = f"""
@@ -664,26 +720,28 @@ def cockpit_smart_side_insights(
             COALESCE(MAX(o.`{ta}`), 0) AS max_ticket,
             COUNT(*) AS order_n
         FROM `{otbl}` o
-        WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s
+        WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s{addr_fr}
     """
     sql_points = f"""
         SELECT COUNT(DISTINCT TRIM(o.`{maddr}`)) AS c
         FROM `{otbl}` o
         WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s
-          AND NULLIF(TRIM(o.`{maddr}`), '') IS NOT NULL
+          AND NULLIF(TRIM(o.`{maddr}`), '') IS NOT NULL{addr_fr}
     """
 
     conn = _mysql_connect(cfg)
     try:
         try:
             with conn.cursor() as cur:
-                cur.execute(sql_district, (t0, t1))
+                p_cur = (t0, t1) + ((d_only,) if d_only else ())
+                cur.execute(sql_district, p_cur)
                 cur_rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
-                cur.execute(sql_district, (pt0, pt1))
+                p_prev = (pt0, pt1) + ((d_only,) if d_only else ())
+                cur.execute(sql_district, p_prev)
                 prev_rows = {_jsonable_row(dict(r))["district_name"]: _jsonable_row(dict(r)) for r in cur.fetchall()}
-                cur.execute(sql_ticket, (t0, t1))
+                cur.execute(sql_ticket, (t0, t1) + addr_params)
                 tk = _jsonable_row(dict(cur.fetchone() or {}))
-                cur.execute(sql_points, (t0, t1))
+                cur.execute(sql_points, (t0, t1) + addr_params)
                 ap = int(dict(cur.fetchone() or {}).get("c") or 0)
         except pymysql.MySQLError as e:
             raise HTTPException(
@@ -869,22 +927,47 @@ def meta_tables():
 
 
 @router.get("/today-intraday-gmv")
-def today_intraday_gmv():
-    """今日（上海时区）按 1 分钟桶聚合成交额；前端可做前缀和得到累计分时曲线。"""
+def today_intraday_gmv(
+    date: Optional[str] = Query(
+        None,
+        description="YYYY-MM-DD，默认今日；历史日返回当日全日分钟桶，今日截止到当前时刻",
+    ),
+    district_name: Optional[str] = Query(
+        None, description="可选：仅统计收货地址匹配该区县的订单"
+    ),
+):
+    """指定日（东八区）按 1 分钟桶聚合成交额；未传 date 时为今日。前端可做 3 小时等粗粒度聚合对比。"""
     cfg = _cfg_or_503()
-    day = datetime.now(_TZ).date()
+    now_ts = int(datetime.now(_TZ).timestamp())
+    today_d = datetime.now(_TZ).date()
+    if date:
+        try:
+            day = datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail="date 须为 YYYY-MM-DD",
+            ) from e
+        if day > today_d:
+            raise HTTPException(status_code=400, detail="date 不能为未来日期")
+    else:
+        day = today_d
     t0 = _day_start_ts(day)
     t1_day_end = _day_end_ts(day)
-    now_ts = int(datetime.now(_TZ).timestamp())
-    t1 = min(t1_day_end, now_ts)
+    if day == today_d:
+        t1 = min(t1_day_end, now_ts)
+    else:
+        t1 = t1_day_end
     ot, ta = S.ORDERS_TIME_COL, S.ORDERS_AMOUNT_COL
+    maddr = S.ORDERS_MEMBER_ADDRESS_COL
+    addr_fr, addr_params = _orders_addr_filter_fragment(maddr, None, district_name)
     t0_sql = int(t0)
     sql = f"""
         SELECT ({t0_sql} + FLOOR((`{ot}` - {t0_sql}) / 60) * 60) AS minute_start,
                COALESCE(SUM(`{ta}`), 0) AS bucket_gmv,
                COUNT(*) AS order_count
         FROM `{S.ORDERS_TABLE}`
-        WHERE `{ot}` >= %s AND `{ot}` <= %s
+        WHERE `{ot}` >= %s AND `{ot}` <= %s{addr_fr}
         GROUP BY minute_start
         ORDER BY minute_start
     """
@@ -892,7 +975,7 @@ def today_intraday_gmv():
     try:
         try:
             with conn.cursor() as cur:
-                cur.execute(sql, (t0, t1))
+                cur.execute(sql, (t0, t1) + addr_params)
                 raw = [dict(r) for r in cur.fetchall()]
         except pymysql.MySQLError as e:
             raise HTTPException(
@@ -1129,11 +1212,38 @@ def order_line_items(
         gp = spec.price_col
         join_fk = spec.items_order_fk
         itbl = spec.items_table
+        goods_cat = (
+            resolve_goods_catalog_spec(conn, cfg.database, otbl, itbl)
+            if spec.goods_id_col
+            else None
+        )
+        join_sql = ""
+        goods_alias = "p"
+        if goods_cat and spec.goods_id_col:
+            join_sql = (
+                f" LEFT JOIN `{goods_cat.table}` `{goods_alias}` "
+                f"ON `g`.`{spec.goods_id_col}` = `{goods_alias}`.`{goods_cat.pk_col}` "
+            )
+        spec_sql = coalesce_item_goods_trim_sql(
+            "g",
+            spec.item_spec_col,
+            goods_alias if join_sql else None,
+            goods_cat.spec_col if goods_cat else None,
+        )
+        unit_sql = coalesce_item_goods_trim_sql(
+            "g",
+            spec.item_unit_col,
+            goods_alias if join_sql else None,
+            goods_cat.unit_col if goods_cat else None,
+        )
         sql = f"""
             SELECT g.`{gn}` AS goods_name,
                    ({qty_expr}) AS qty,
-                   ROUND(COALESCE(g.`{gp}`, 0) * ({qty_expr}), 4) AS line_amount
+                   ROUND(COALESCE(g.`{gp}`, 0) * ({qty_expr}), 4) AS line_amount,
+                   {spec_sql} AS spec,
+                   {unit_sql} AS unit
             FROM `{itbl}` g
+            {join_sql}
             WHERE g.`{join_fk}` = %s
             ORDER BY g.`{gn}` ASC
             LIMIT 500
@@ -1160,6 +1270,9 @@ def kpi_summary(
     ),
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
+    district_name: Optional[str] = Query(
+        None, description="可选：仅统计收货地址匹配该区县的订单"
+    ),
 ):
     cfg = _cfg_or_503()
     if scope == "today":
@@ -1172,24 +1285,26 @@ def kpi_summary(
     t0, t1 = _day_start_ts(start), _day_end_ts(end)
     ot, ta = S.ORDERS_TIME_COL, S.ORDERS_AMOUNT_COL
     mid = S.ORDERS_MEMBER_COL
+    maddr = S.ORDERS_MEMBER_ADDRESS_COL
+    addr_fr, addr_params = _orders_addr_filter_fragment(maddr, None, district_name)
     sql_orders = f"""
         SELECT COUNT(*) AS order_count,
                COALESCE(SUM(`{ta}`), 0) AS gmv
         FROM `{S.ORDERS_TABLE}`
-        WHERE `{ot}` >= %s AND `{ot}` <= %s
+        WHERE `{ot}` >= %s AND `{ot}` <= %s{addr_fr}
     """
     sql_distinct_buyers = f"""
         SELECT COUNT(DISTINCT `{mid}`) AS c
         FROM `{S.ORDERS_TABLE}`
         WHERE `{ot}` >= %s AND `{ot}` <= %s
-              AND `{mid}` IS NOT NULL AND `{mid}` != 0
+              AND `{mid}` IS NOT NULL AND `{mid}` != 0{addr_fr}
     """
     # 全库首次下单时间落在本统计窗口内的会员数（今日即「今日首单会员」）
     sql_first_order_members = f"""
         SELECT COUNT(*) AS c FROM (
             SELECT `{mid}` AS m
             FROM `{S.ORDERS_TABLE}`
-            WHERE `{mid}` IS NOT NULL AND `{mid}` != 0
+            WHERE `{mid}` IS NOT NULL AND `{mid}` != 0{addr_fr}
             GROUP BY `{mid}`
             HAVING MIN(`{ot}`) >= %s AND MIN(`{ot}`) <= %s
         ) t
@@ -1202,11 +1317,13 @@ def kpi_summary(
     try:
         try:
             with conn.cursor() as cur:
-                cur.execute(sql_orders, (t0, t1))
+                cur.execute(sql_orders, (t0, t1) + addr_params)
                 row = dict(cur.fetchone() or {})
-                cur.execute(sql_distinct_buyers, (t0, t1))
+                cur.execute(sql_distinct_buyers, (t0, t1) + addr_params)
                 distinct_buyers = int(dict(cur.fetchone() or {}).get("c") or 0)
-                cur.execute(sql_first_order_members, (t0, t1))
+                cur.execute(
+                    sql_first_order_members, addr_params + (t0, t1),
+                )
                 first_order_members = int(dict(cur.fetchone() or {}).get("c") or 0)
                 bt, ba = S.BACKORDER_TIME_COL, S.BACKORDER_AMOUNT_COL
                 try:
@@ -1309,7 +1426,12 @@ def orders_calendar_heatmap(
 
 
 @router.get("/ops-alerts")
-def ops_alerts(limit: int = Query(20, ge=1, le=50)):
+def ops_alerts(
+    limit: int = Query(20, ge=1, le=50),
+    district_name: Optional[str] = Query(
+        None, description="可选：仅统计关联订单收货地址匹配该区县的记录"
+    ),
+):
     """运营指挥台：今日补单/退货预警汇总与最近明细（只读，白名单表）。"""
     cfg = _cfg_or_503()
     day = datetime.now(_TZ).date()
@@ -1319,7 +1441,9 @@ def ops_alerts(limit: int = Query(20, ge=1, le=50)):
     o_sn = S.ORDERS_SN_COL
     o_amt = S.ORDERS_AMOUNT_COL
     o_mem = S.ORDERS_MEMBER_NAME_COL
+    o_maddr = S.ORDERS_MEMBER_ADDRESS_COL
     o_dis = S.ORDERS_DISORDER_FK_COL
+    addr_fr_o, addr_p_o = _orders_addr_filter_fragment(o_maddr, "o", district_name)
     b_tbl = S.BACKORDER_TABLE
     b_t = S.BACKORDER_TIME_COL
     b_amt = S.BACKORDER_AMOUNT_COL
@@ -1335,21 +1459,31 @@ def ops_alerts(limit: int = Query(20, ge=1, le=50)):
     d_st = S.DISORDER_STATUS_COL
     done = int(S.DISORDER_STATUS_DONE)
 
-    sql_ret_sum = f"""
-        SELECT COUNT(*) AS c, COALESCE(SUM(`{b_amt}`), 0) AS amt
-        FROM `{b_tbl}`
-        WHERE `{b_t}` >= %s AND `{b_t}` <= %s
-          AND `{b_bst}` <= %s
-    """
+    if addr_p_o:
+        sql_ret_sum = f"""
+            SELECT COUNT(*) AS c, COALESCE(SUM(b.`{b_amt}`), 0) AS amt
+            FROM `{b_tbl}` b
+            INNER JOIN `{S.ORDERS_TABLE}` o ON o.`{o_pk}` = b.`{b_oid}`
+            WHERE b.`{b_t}` >= %s AND b.`{b_t}` <= %s
+              AND b.`{b_bst}` <= %s{addr_fr_o}
+        """
+    else:
+        sql_ret_sum = f"""
+            SELECT COUNT(*) AS c, COALESCE(SUM(`{b_amt}`), 0) AS amt
+            FROM `{b_tbl}`
+            WHERE `{b_t}` >= %s AND `{b_t}` <= %s
+              AND `{b_bst}` <= %s
+        """
+    join_orders = "INNER JOIN" if addr_p_o else "LEFT JOIN"
     sql_ret_items = f"""
         SELECT b.`{b_pk}` AS id, b.`{b_sn}` AS backorder_sn, b.`{b_oid}` AS order_id,
                b.`{b_amt}` AS total_amount, b.`{b_bst}` AS back_status, b.`{b_st}` AS status,
                b.`{b_t}` AS add_time, b.`remark` AS remark,
                o.`{o_sn}` AS order_sn, o.`{o_mem}` AS member_realname
         FROM `{b_tbl}` b
-        LEFT JOIN `{S.ORDERS_TABLE}` o ON o.`{o_pk}` = b.`{b_oid}`
+        {join_orders} `{S.ORDERS_TABLE}` o ON o.`{o_pk}` = b.`{b_oid}`
         WHERE b.`{b_t}` >= %s AND b.`{b_t}` <= %s
-          AND b.`{b_bst}` <= %s
+          AND b.`{b_bst}` <= %s{addr_fr_o}
         ORDER BY b.`{b_t}` DESC
         LIMIT %s
     """
@@ -1357,7 +1491,7 @@ def ops_alerts(limit: int = Query(20, ge=1, le=50)):
         SELECT COUNT(*) AS c
         FROM `{S.ORDERS_TABLE}` o
         WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s
-          AND o.`{o_dis}` IS NOT NULL AND o.`{o_dis}` > 0
+          AND o.`{o_dis}` IS NOT NULL AND o.`{o_dis}` > 0{addr_fr_o}
     """
     sql_sup_pend = f"""
         SELECT COUNT(*) AS c
@@ -1365,7 +1499,7 @@ def ops_alerts(limit: int = Query(20, ge=1, le=50)):
         INNER JOIN `{d_tbl}` d ON d.`{d_pk}` = o.`{o_dis}`
         WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s
           AND o.`{o_dis}` > 0
-          AND d.`{d_st}` != %s
+          AND d.`{d_st}` != %s{addr_fr_o}
     """
     sql_sup_items = f"""
         SELECT o.`{o_pk}` AS id, o.`{o_sn}` AS order_sn, o.`{o_amt}` AS total_amount,
@@ -1374,7 +1508,7 @@ def ops_alerts(limit: int = Query(20, ge=1, le=50)):
         FROM `{S.ORDERS_TABLE}` o
         INNER JOIN `{d_tbl}` d ON d.`{d_pk}` = o.`{o_dis}`
         WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s
-          AND o.`{o_dis}` > 0
+          AND o.`{o_dis}` > 0{addr_fr_o}
         ORDER BY o.`{ot}` DESC
         LIMIT %s
     """
@@ -1394,24 +1528,24 @@ def ops_alerts(limit: int = Query(20, ge=1, le=50)):
     }
     try:
         with conn.cursor() as cur:
-            cur.execute(sql_ret_sum, (t0, t1, pend_max))
+            cur.execute(sql_ret_sum, (t0, t1, pend_max) + addr_p_o)
             rs = dict(cur.fetchone() or {})
             out["return_pending"] = {
                 "count": int(rs.get("c") or 0),
                 "amount": float(rs.get("amt") or 0),
             }
-            cur.execute(sql_ret_items, (t0, t1, pend_max, limit))
+            cur.execute(sql_ret_items, (t0, t1, pend_max) + addr_p_o + (limit,))
             out["return_items"] = [_jsonable_row(dict(r)) for r in cur.fetchall()]
 
-            cur.execute(sql_sup_cnt, (t0, t1))
+            cur.execute(sql_sup_cnt, (t0, t1) + addr_p_o)
             out["supplement_today"]["linked_count"] = int(
                 dict(cur.fetchone() or {}).get("c") or 0,
             )
-            cur.execute(sql_sup_pend, (t0, t1, done))
+            cur.execute(sql_sup_pend, (t0, t1, done) + addr_p_o)
             out["supplement_today"]["pending_disorder_count"] = int(
                 dict(cur.fetchone() or {}).get("c") or 0,
             )
-            cur.execute(sql_sup_items, (t0, t1, limit))
+            cur.execute(sql_sup_items, (t0, t1) + addr_p_o + (limit,))
             out["supplement_items"] = [_jsonable_row(dict(r)) for r in cur.fetchall()]
     except pymysql.MySQLError as e:
         raise HTTPException(

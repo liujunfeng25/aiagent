@@ -29,9 +29,25 @@ class OrderItemsSpec:
     qty_cols: tuple[str, ...]
     """商品类别列；无则 None（类别分布归为「未分类」）"""
     category_col: Optional[str] = None
+    """关联商品主档；无则无法 JOIN 补规格/单位"""
+    goods_id_col: Optional[str] = None
+    """明细表上的规格、单位列（优先于商品表）"""
+    item_spec_col: Optional[str] = None
+    item_unit_col: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class GoodsCatalogSpec:
+    """商品主档表：用于订单明细缺规格/单位时 LEFT JOIN 补全。"""
+
+    table: str
+    pk_col: str
+    spec_col: Optional[str]
+    unit_col: Optional[str]
 
 
 _spec_cache: dict[str, Optional[OrderItemsSpec]] = {}
+_goods_catalog_cache: dict[str, Optional[GoodsCatalogSpec]] = {}
 
 
 def _norm_cols(rows: list[dict]) -> dict[str, set[str]]:
@@ -67,6 +83,45 @@ _CATEGORY_COL_CANDIDATES: Tuple[str, ...] = (
 
 def _pick_category_col(cols: set[str]) -> Optional[str]:
     for c in _CATEGORY_COL_CANDIDATES:
+        if c in cols:
+            return c
+    return None
+
+
+def _pick_goods_id_col(cols: set[str]) -> Optional[str]:
+    for c in ("goods_id", "product_id", "gid", "sku_id"):
+        if c in cols:
+            return c
+    return None
+
+
+def _pick_item_spec_col(cols: set[str]) -> Optional[str]:
+    for c in (
+        "goods_spec",
+        "spec",
+        "specification",
+        "guige",
+        "goods_guige",
+        "norms",
+        "packing_spec",
+        "standard",
+        "attr_value",
+    ):
+        if c in cols:
+            return c
+    return None
+
+
+def _pick_item_unit_col(cols: set[str]) -> Optional[str]:
+    for c in (
+        "unit",
+        "goods_unit",
+        "sale_unit",
+        "unit_name",
+        "measure_unit",
+        "goods_unit_name",
+        "packing_unit",
+    ):
         if c in cols:
             return c
     return None
@@ -130,6 +185,9 @@ def _match_orders_items_table(
         price_col=price_col,
         qty_cols=qty_cols,
         category_col=_pick_category_col(cols),
+        goods_id_col=_pick_goods_id_col(cols),
+        item_spec_col=_pick_item_spec_col(cols),
+        item_unit_col=_pick_item_unit_col(cols),
     )
 
 
@@ -148,6 +206,9 @@ def resolve_order_items_spec(conn, database: str, orders_table: str = S.ORDERS_T
     explicit_price = os.environ.get("INSIGHTS_ORDER_ITEMS_PRICE_COL", "").strip()
     explicit_qty = os.environ.get("INSIGHTS_ORDER_ITEMS_QTY_COLS", "").strip()
     explicit_category = os.environ.get("INSIGHTS_ORDER_ITEMS_CATEGORY_COL", "").strip()
+    explicit_gid = os.environ.get("INSIGHTS_ORDER_ITEMS_GOODS_ID_COL", "").strip()
+    explicit_isc = os.environ.get("INSIGHTS_ORDER_ITEMS_SPEC_COL", "").strip()
+    explicit_iuc = os.environ.get("INSIGHTS_ORDER_ITEMS_UNIT_COL", "").strip()
 
     with conn.cursor() as cur:
         cur.execute(
@@ -198,6 +259,21 @@ def resolve_order_items_spec(conn, database: str, orders_table: str = S.ORDERS_T
             cat_col = explicit_category
         else:
             cat_col = _pick_category_col(cols)
+        gid_col = (
+            explicit_gid
+            if explicit_gid and explicit_gid.lower() in cols
+            else _pick_goods_id_col(cols)
+        )
+        isc = (
+            explicit_isc
+            if explicit_isc and explicit_isc.lower() in cols
+            else _pick_item_spec_col(cols)
+        )
+        iuc = (
+            explicit_iuc
+            if explicit_iuc and explicit_iuc.lower() in cols
+            else _pick_item_unit_col(cols)
+        )
         spec = OrderItemsSpec(
             items_table=explicit_table,
             items_order_fk=fk,
@@ -206,6 +282,9 @@ def resolve_order_items_spec(conn, database: str, orders_table: str = S.ORDERS_T
             price_col=price,
             qty_cols=qty_parts,
             category_col=cat_col,
+            goods_id_col=gid_col,
+            item_spec_col=isc,
+            item_unit_col=iuc,
         )
         _spec_cache[cache_key] = spec
         return spec
@@ -248,5 +327,128 @@ def build_qty_sql(alias: str, qty_cols: tuple[str, ...]) -> str:
     return "COALESCE(" + ", ".join(parts + ["0"]) + ")"
 
 
+def coalesce_item_goods_trim_sql(
+    alias_line: str,
+    col_line: Optional[str],
+    alias_goods: Optional[str],
+    col_goods: Optional[str],
+) -> str:
+    """COALESCE(明细列, 商品表列)，空串视为 NULL；无列则返回 SQL NULL。"""
+    parts: list[str] = []
+    if col_line:
+        parts.append(
+            f"NULLIF(TRIM(CAST(`{alias_line}`.`{col_line}` AS CHAR)), '')"
+        )
+    if alias_goods and col_goods:
+        parts.append(
+            f"NULLIF(TRIM(CAST(`{alias_goods}`.`{col_goods}` AS CHAR)), '')"
+        )
+    if not parts:
+        return "NULL"
+    if len(parts) == 1:
+        return parts[0]
+    return "COALESCE(" + ", ".join(parts) + ")"
+
+
+def resolve_goods_catalog_spec(
+    conn,
+    database: str,
+    orders_table: str,
+    items_table: str,
+) -> Optional[GoodsCatalogSpec]:
+    """
+    解析商品主档表（与订单明细 goods_id 等关联）。
+    仅在能识别出规格或单位列时返回（避免无意义 JOIN）；可用环境变量强制指定。
+    """
+    cache_key = f"{database}:goods_catalog"
+    if cache_key in _goods_catalog_cache:
+        return _goods_catalog_cache[cache_key]
+
+    explicit_table = os.environ.get("INSIGHTS_GOODS_TABLE", "").strip()
+    explicit_pk = os.environ.get("INSIGHTS_GOODS_PK_COL", "").strip()
+    explicit_spec = os.environ.get("INSIGHTS_GOODS_SPEC_COL", "").strip()
+    explicit_unit = os.environ.get("INSIGHTS_GOODS_UNIT_COL", "").strip()
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT TABLE_NAME, COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = %s
+            """,
+            (database,),
+        )
+        raw = cur.fetchall()
+
+    by_table = _norm_cols([dict(r) for r in raw])
+
+    def _pick_pk(cols: set[str]) -> Optional[str]:
+        if explicit_pk and explicit_pk.lower() in cols:
+            return explicit_pk
+        if "id" in cols:
+            return "id"
+        if "goods_id" in cols:
+            return "goods_id"
+        return None
+
+    def _try_table(table: str, cols: set[str]) -> Optional[GoodsCatalogSpec]:
+        pk = _pick_pk(cols)
+        if not pk:
+            return None
+        if not any(
+            x in cols for x in ("goods_name", "name", "goods_title", "product_name")
+        ):
+            return None
+        spec_c = (
+            explicit_spec
+            if explicit_spec and explicit_spec.lower() in cols
+            else _pick_item_spec_col(cols)
+        )
+        unit_c = (
+            explicit_unit
+            if explicit_unit and explicit_unit.lower() in cols
+            else _pick_item_unit_col(cols)
+        )
+        if spec_c is None and unit_c is None:
+            return None
+        return GoodsCatalogSpec(
+            table=table, pk_col=pk, spec_col=spec_c, unit_col=unit_c
+        )
+
+    if explicit_table and explicit_table in by_table:
+        if explicit_table in (orders_table, items_table):
+            _goods_catalog_cache[cache_key] = None
+            return None
+        spec = _try_table(explicit_table, by_table[explicit_table])
+        _goods_catalog_cache[cache_key] = spec
+        return spec
+
+    preference = ("goods", "shop_goods", "goods_info", "products", "product")
+    candidates: list[tuple[int, str, GoodsCatalogSpec]] = []
+    for table, cols in by_table.items():
+        if table == orders_table or table == items_table:
+            continue
+        tl = table.lower()
+        if tl not in preference and "good" not in tl and "product" not in tl:
+            continue
+        built = _try_table(table, cols)
+        if not built:
+            continue
+        score = 0
+        if tl in preference:
+            score = 100 - preference.index(tl)
+        candidates.append((score, table, built))
+
+    if not candidates:
+        _goods_catalog_cache[cache_key] = None
+        return None
+
+    candidates.sort(key=lambda x: (-x[0], x[1]))
+    out = candidates[0][2]
+    _goods_catalog_cache[cache_key] = out
+    return out
+
+
 def clear_order_items_spec_cache() -> None:
     _spec_cache.clear()
+    _goods_catalog_cache.clear()

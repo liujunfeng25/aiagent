@@ -27,6 +27,11 @@
 | `INSIGHTS_ORDER_ITEMS_NAME_COL` | 品名列 |
 | `INSIGHTS_ORDER_ITEMS_PRICE_COL` | 单价列 |
 | `INSIGHTS_ORDER_ITEMS_QTY_COLS` | 数量列，逗号分隔多个则按顺序 `COALESCE`，如 `needqty,sendqty` |
+| `INSIGHTS_ORDER_ITEMS_GOODS_ID_COL` | 明细行上关联商品表的 id 列（如 `goods_id`），用于补规格/单位 |
+| `INSIGHTS_ORDER_ITEMS_SPEC_COL` / `INSIGHTS_ORDER_ITEMS_UNIT_COL` | 明细表上规格、单位列名（可选，不填则自动猜常见列名） |
+| `INSIGHTS_GOODS_TABLE` | 商品主档表名（可选；不填则按 `goods` / `shop_goods` 等候选自动匹配） |
+| `INSIGHTS_GOODS_PK_COL` | 商品表主键列，默认 `id` |
+| `INSIGHTS_GOODS_SPEC_COL` / `INSIGHTS_GOODS_UNIT_COL` | 商品表规格、单位列（可选，与自动识别互补） |
 | `backorder` | 背单/缺货 |
 | `chart_xinfadi_price_summary` | 新发地批发价日汇总 |
 

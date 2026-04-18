@@ -24,6 +24,10 @@
               <el-icon><Monitor /></el-icon>
               <span>数据驾驶舱</span>
             </el-menu-item>
+            <el-menu-item index="/tianshu" title="北京市三维地图数据可视化（beijing 子应用）">
+              <el-icon><Compass /></el-icon>
+              <span>天枢大屏</span>
+            </el-menu-item>
           </el-sub-menu>
 
           <el-sub-menu index="grp-data-train">
@@ -123,6 +127,7 @@ import {
   Setting,
   Van,
   Cpu,
+  Compass,
 } from '@element-plus/icons-vue'
 import TechParticleBg from './components/cockpit/TechParticleBg.vue'
 
