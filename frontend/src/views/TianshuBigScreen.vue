@@ -1,11 +1,14 @@
 <template>
   <div class="tianshu-shell">
     <iframe
+      ref="iframeRef"
       :src="iframeSrc"
       class="tianshu-iframe"
       title="天枢大屏"
       referrerpolicy="same-origin"
+      allow="fullscreen"
       allowfullscreen
+      @load="onIframeLoad"
     />
     <p v-if="showEmbedHint" class="tianshu-hint">
       开发模式：iframe 指向独立 dev 服务。生产构建请执行
@@ -16,21 +19,93 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from "vue"
 
 /** 开发：在 .env.development.local 设置 VITE_TIANSHU_URL=http://127.0.0.1:5174/ （beijing 项目 npm run dev -- --port 5174） */
 const devUrl = import.meta.env.VITE_TIANSHU_URL
 
+const iframeRef = ref(null)
+
 const iframeSrc = computed(() => {
-  const u = devUrl != null ? String(devUrl).trim() : ''
+  const u = devUrl != null ? String(devUrl).trim() : ""
   if (u) {
-    const base = u.endsWith('/') ? u.slice(0, -1) : u
+    const base = u.endsWith("/") ? u.slice(0, -1) : u
     return `${base}/`
   }
-  return '/tianshu/index.html'
+  return "/tianshu/index.html"
 })
 
 const showEmbedHint = computed(() => Boolean(import.meta.env.DEV && devUrl))
+
+function getFullscreenElement() {
+  const d = document
+  return (
+    d.fullscreenElement ||
+    d.webkitFullscreenElement ||
+    d.mozFullScreenElement ||
+    d.msFullscreenElement ||
+    null
+  )
+}
+
+function notifyIframeFullscreenState() {
+  const w = iframeRef.value?.contentWindow
+  if (!w) return
+  const el = iframeRef.value
+  const fs = getFullscreenElement()
+  const on = Boolean(el && fs === el)
+  try {
+    w.postMessage({ type: "tianshu-fullscreen-state", value: on }, "*")
+  } catch {
+    /* ignore */
+  }
+}
+
+function onIframeLoad() {
+  notifyIframeFullscreenState()
+}
+
+function onParentFullscreenChange() {
+  notifyIframeFullscreenState()
+}
+
+function onChildMessage(ev) {
+  if (ev.data?.type !== "tianshu-toggle-fullscreen") return
+  const el = iframeRef.value
+  if (!el) return
+  const fs = getFullscreenElement()
+  const req =
+    el.requestFullscreen ||
+    el.webkitRequestFullscreen ||
+    el.mozRequestFullScreen ||
+    el.msRequestFullscreen
+  const exit =
+    document.exitFullscreen ||
+    document.webkitExitFullscreen ||
+    document.mozCancelFullScreen ||
+    document.msExitFullscreen
+  try {
+    if (fs === el) {
+      exit?.call(document)
+    } else {
+      req?.call(el)
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+onMounted(() => {
+  window.addEventListener("message", onChildMessage)
+  document.addEventListener("fullscreenchange", onParentFullscreenChange)
+  document.addEventListener("webkitfullscreenchange", onParentFullscreenChange)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener("message", onChildMessage)
+  document.removeEventListener("fullscreenchange", onParentFullscreenChange)
+  document.removeEventListener("webkitfullscreenchange", onParentFullscreenChange)
+})
 </script>
 
 <style scoped>

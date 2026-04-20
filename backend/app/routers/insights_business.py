@@ -490,6 +490,41 @@ def _cockpit_map_address_key(addr: str) -> str:
     return f"a:{h}"
 
 
+# 驾驶舱地图：无高德 Web Key 时无法调用地理编码，订单光柱会全部为空。
+# 对收货地址做「区县关键字 → GCJ-02 近似中心」兜底（与侧栏 _BJ_DISTRICT_LIKE_ORDER / 雄安三县白名单一致）。
+_COCKPIT_MAP_BJ_DISTRICT_APPROX: dict[str, tuple[float, float]] = {
+    "门头沟区": (116.105, 39.937),
+    "石景山区": (116.223, 39.906),
+    "房山区": (116.143, 39.749),
+    "大兴区": (116.338, 39.728),
+    "通州区": (116.656, 39.909),
+    "顺义区": (116.654, 40.130),
+    "昌平区": (116.231, 40.221),
+    "延庆区": (115.974, 40.465),
+    "密云区": (116.843, 40.377),
+    "怀柔区": (116.632, 40.316),
+    "平谷区": (117.112, 40.144),
+    "朝阳区": (116.486, 39.948),
+    "丰台区": (116.287, 39.858),
+    "海淀区": (116.298, 39.959),
+    "西城区": (116.372, 39.916),
+    "东城区": (116.422, 39.934),
+    "容城县": (115.874, 39.052),
+    "雄县": (116.109, 38.990),
+    "安新县": (115.927, 38.936),
+}
+
+
+def _cockpit_map_approx_coord_from_address(addr: str) -> Optional[tuple[float, float]]:
+    s = (addr or "").strip()
+    if not s:
+        return None
+    for name in sorted(_COCKPIT_MAP_BJ_DISTRICT_APPROX.keys(), key=len, reverse=True):
+        if name in s:
+            return _COCKPIT_MAP_BJ_DISTRICT_APPROX[name]
+    return None
+
+
 @router.get("/cockpit-customer-map-points")
 def cockpit_customer_map_points(
     start_date: Optional[str] = Query(None),
@@ -559,6 +594,7 @@ def cockpit_customer_map_points(
 
     points: list[dict[str, Any]] = []
     failed = 0
+    approx_placed = 0
     for r in rows_raw:
         addr = str(r.get("address") or "").strip()
         member_count = int(r.get("member_count") or 0)
@@ -574,23 +610,31 @@ def cockpit_customer_map_points(
         else:
             display_name = str(r.get("customer_name") or "—")
         c = coord_by.get(addr)
+        source = "amap"
+        if not c:
+            ac = _cockpit_map_approx_coord_from_address(addr)
+            if ac:
+                c = ac
+                source = "approx_district"
+                approx_placed += 1
         if not c:
             failed += 1
             continue
         lng, lat = c
-        points.append(
-            {
-                "member_key": _cockpit_map_address_key(addr),
-                "member_id": mid_int,
-                "member_count": member_count,
-                "customer_name": display_name,
-                "address": addr,
-                "order_count": int(r.get("order_count") or 0),
-                "gmv": float(r.get("gmv") or 0),
-                "lng": lng,
-                "lat": lat,
-            }
-        )
+        row_out: dict[str, Any] = {
+            "member_key": _cockpit_map_address_key(addr),
+            "member_id": mid_int,
+            "member_count": member_count,
+            "customer_name": display_name,
+            "address": addr,
+            "order_count": int(r.get("order_count") or 0),
+            "gmv": float(r.get("gmv") or 0),
+            "lng": lng,
+            "lat": lat,
+        }
+        if source == "approx_district":
+            row_out["coord_source"] = "approx_district"
+        points.append(row_out)
 
     return {
         "start_date": start.isoformat(),
@@ -598,6 +642,7 @@ def cockpit_customer_map_points(
         "points": points,
         "failed_geocode_count": failed,
         "geocode_enabled": bool(amap_key()),
+        "approx_district_points": approx_placed,
     }
 
 
@@ -880,6 +925,66 @@ def member_orders_in_range(
         "end_date": end.isoformat(),
         "member_id": member_id,
         "address": addr_trim or None,
+        "rows": rows,
+    }
+
+
+_MAX_TODAY_ORDERS_LIST = 2000
+
+
+@router.get("/today-orders-list")
+def today_orders_list(
+    limit: int = Query(500, ge=1, le=_MAX_TODAY_ORDERS_LIST),
+):
+    """今日 0 点起至今的订单列表（全市），供天枢大屏「今日订单」弹窗。"""
+    cfg = _cfg_or_503()
+    day = datetime.now(_TZ).date()
+    t0 = _day_start_ts(day)
+    t1 = min(_day_end_ts(day), int(datetime.now(_TZ).timestamp()))
+    ot = S.ORDERS_TIME_COL
+    otbl = S.ORDERS_TABLE
+    pk = S.ORDERS_PK_COL
+    osn = S.ORDERS_SN_COL
+    ta = S.ORDERS_AMOUNT_COL
+    maddr = S.ORDERS_MEMBER_ADDRESS_COL
+    mreal = S.ORDERS_MEMBER_NAME_COL
+    mlogin = S.ORDERS_MEMBER_LOGIN_COL
+    lim = min(int(limit), _MAX_TODAY_ORDERS_LIST)
+    sql = f"""
+        SELECT o.`{pk}` AS id,
+               o.`{osn}` AS order_sn,
+               o.`{ot}` AS add_time,
+               o.`{ta}` AS total_amount,
+               COALESCE(
+                   NULLIF(TRIM(o.`{mreal}`), ''),
+                   NULLIF(TRIM(o.`{mlogin}`), ''),
+                   '—'
+               ) AS customer_name,
+               NULLIF(TRIM(o.`{maddr}`), '') AS member_address
+        FROM `{otbl}` o
+        WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s
+        ORDER BY o.`{ot}` DESC, o.`{pk}` DESC
+        LIMIT %s
+    """
+    conn = _mysql_connect(cfg)
+    try:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, (t0, t1, lim))
+                rows = [_jsonable_row(dict(r)) for r in cur.fetchall()]
+        except pymysql.MySQLError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"业务库查询失败：`{otbl}` — {e}",
+            ) from e
+    finally:
+        conn.close()
+
+    return {
+        "day": day.isoformat(),
+        "day_start_ts": t0,
+        "day_end_ts": t1,
+        "limit": lim,
         "rows": rows,
     }
 
@@ -1512,6 +1617,36 @@ def ops_alerts(
         ORDER BY o.`{ot}` DESC
         LIMIT %s
     """
+    # 今日订单三色占比（天枢饼图）：与顶部「今日下单数」一致——仅按下单时间 add_time 落在当日。
+    # 分类（互斥）：backorder 出现过该订单 → 退单；否则有补单号 disorder_id>0 → 补单；否则正常。
+    sql_today_mix = f"""
+        SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN b.order_id IS NOT NULL THEN 1 ELSE 0 END) AS n_return,
+            SUM(
+                CASE
+                    WHEN b.order_id IS NULL
+                     AND o.`{o_dis}` IS NOT NULL AND o.`{o_dis}` > 0
+                    THEN 1 ELSE 0
+                END
+            ) AS n_supplement,
+            SUM(
+                CASE
+                    WHEN b.order_id IS NULL
+                     AND (o.`{o_dis}` IS NULL OR o.`{o_dis}` = 0)
+                    THEN 1 ELSE 0
+                END
+            ) AS n_normal
+        FROM `{S.ORDERS_TABLE}` o
+        LEFT JOIN (
+            SELECT DISTINCT `{b_oid}` AS order_id FROM `{b_tbl}`
+        ) b ON b.order_id = o.`{o_pk}`
+        WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s{addr_fr_o}
+    """
+    _mix_note = (
+        "今日范围：仅按下单时间 add_time 当日；未传收货区县时与顶部「今日下单数」同为全市口径。"
+        "三色（互斥、依次判定）：订单曾在 backorder 出现 → 退单；否则有补单号 disorder_id>0 → 补单；否则正常。"
+    )
 
     conn = _mysql_connect(cfg)
     out: dict[str, Any] = {
@@ -1519,15 +1654,32 @@ def ops_alerts(
         "threshold_note": (
             f"退货待处理：{b_tbl}.{b_bst}<={pend_max}；"
             f"补单：{S.ORDERS_TABLE}.{o_dis}>0 且关联 {d_tbl}；"
-            f"分拣未结案：{d_tbl}.{d_st}!={done}"
+            f"分拣未结案：{d_tbl}.{d_st}!={done}；"
+            f"饼图：{_mix_note}"
         ),
         "return_pending": {"count": 0, "amount": 0.0},
         "return_items": [],
         "supplement_today": {"linked_count": 0, "pending_disorder_count": 0},
         "supplement_items": [],
+        "today_order_mix": {
+            "total": 0,
+            "n_return": 0,
+            "n_supplement": 0,
+            "n_normal": 0,
+            "note": _mix_note,
+        },
     }
     try:
         with conn.cursor() as cur:
+            cur.execute(sql_today_mix, (t0, t1) + addr_p_o)
+            mx = dict(cur.fetchone() or {})
+            out["today_order_mix"] = {
+                "total": int(mx.get("total") or 0),
+                "n_return": int(mx.get("n_return") or 0),
+                "n_supplement": int(mx.get("n_supplement") or 0),
+                "n_normal": int(mx.get("n_normal") or 0),
+                "note": _mix_note,
+            }
             cur.execute(sql_ret_sum, (t0, t1, pend_max) + addr_p_o)
             rs = dict(cur.fetchone() or {})
             out["return_pending"] = {

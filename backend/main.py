@@ -29,6 +29,7 @@ from app.routers import (
     insights_business,
     logistics,
     governance_demo,
+    map_tiles,
 )
 from app.xinfadi.routes import router as xinfadi_router
 
@@ -49,6 +50,7 @@ app.include_router(training.router, prefix="/api/training", tags=["training"])
 app.include_router(models.router, prefix="/api/models", tags=["models"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
 app.include_router(insights_business.router, prefix="/api/insights/business", tags=["insights_business"])
+app.include_router(map_tiles.router, prefix="/api/map", tags=["map_tiles"])
 app.include_router(system.router, prefix="/api/system", tags=["system"])
 app.include_router(recognition.router, prefix="/api/recognition", tags=["recognition"])
 app.include_router(categories.router, prefix="/api/categories", tags=["categories"])
