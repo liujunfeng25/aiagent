@@ -384,6 +384,30 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
     { immediate: true },
   )
 
+  /**
+   * 多 Uvicorn worker 时 WS 可能连到落后进程的内存 Hub；HTTP kpi-summary 走库更准。
+   * 在实时通道仍显示「已连接」、且今日单量与库表一致时，若 GMV 偏差 > 0.5 则用库表校正顶栏三指标。
+   */
+  function reconcileHeroFromHttpIfDrift(httpGmv, httpOrderCount) {
+    if (!enabledRef.value || !wsConnected.value) return false
+    const live = liveTodayPatch.value
+    if (!live) return false
+    const ho = Number(httpOrderCount)
+    const hg = Number(httpGmv)
+    if (!Number.isFinite(ho) || !Number.isFinite(hg)) return false
+    const lo = Number(live.order_count)
+    const lg = Number(live.gmv)
+    if (!Number.isFinite(lo) || !Number.isFinite(lg)) return false
+    if (Math.round(lo) !== Math.round(ho)) return false
+    if (Math.abs(lg - hg) <= 0.5) return false
+    liveTodayPatch.value = {
+      order_count: ho,
+      gmv: hg,
+      avg_ticket: avgTicket(hg, ho),
+    }
+    return true
+  }
+
   onUnmounted(() => disconnect())
 
   return {
@@ -407,5 +431,6 @@ export function useCockpitLiveGmv(enabledRef, opts = {}) {
     wsOpenedAt,
     loadIntraday,
     opsAlertReturnTicks,
+    reconcileHeroFromHttpIfDrift,
   }
 }

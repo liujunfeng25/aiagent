@@ -800,11 +800,35 @@ const {
   wsOpenedAt: gmvWsOpenedAt,
   loadIntraday: gmvLoadIntradayFromComposable,
   opsAlertReturnTicks: gmvOpsAlertReturnTicks,
+  reconcileHeroFromHttpIfDrift: gmvReconcileHeroFromHttp,
 } = useCockpitLiveGmv(opsLiveEnabled, {
   onChartsRefresh: loadOpsData,
   refreshDebounceMs: 8000,
 })
 gmvLoadIntraday = gmvLoadIntradayFromComposable
+
+/** 运营台：定时用库表 KPI 校正 WS 顶栏 GMV（多 worker 内存分叉时） */
+let opsGmvDriftTimer = null
+const OPS_GMV_DRIFT_POLL_MS = 20000
+
+async function pollOpsGmvDriftReconcile() {
+  if (activeTab.value !== 'ops') return
+  const kt = await safeFetchJson(`${API_BASE}/kpi-summary?scope=today`)
+  if (!kt.ok || kt.data?.scope !== 'today') return
+  gmvReconcileHeroFromHttp(Number(kt.data.gmv), Number(kt.data.order_count))
+}
+
+watch(
+  [gmvLiveTodayPatch, kpiToday, gmvWsConnected, activeTab],
+  () => {
+    if (activeTab.value !== 'ops' || !gmvWsConnected.value || !kpiToday.value || !gmvLiveTodayPatch.value) {
+      return
+    }
+    const t = kpiToday.value
+    gmvReconcileHeroFromHttp(Number(t.gmv), Number(t.order_count))
+  },
+  { deep: true },
+)
 
 function onTabClick(key) {
   activeTab.value = key
@@ -907,6 +931,7 @@ async function initIotMock() {
 onMounted(() => {
   tickClock()
   clockTimer = setInterval(tickClock, 1000)
+  opsGmvDriftTimer = setInterval(() => void pollOpsGmvDriftReconcile(), OPS_GMV_DRIFT_POLL_MS)
   void initIotMock()
   /* 不 await：首屏先渲染，图表随接口返回逐项铺满，避免整页「卡死」感 */
   void loadOpsData()
@@ -914,6 +939,10 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (clockTimer) clearInterval(clockTimer)
+  if (opsGmvDriftTimer) {
+    clearInterval(opsGmvDriftTimer)
+    opsGmvDriftTimer = null
+  }
   clearOpsAutoRetry()
 })
 </script>
