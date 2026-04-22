@@ -38,8 +38,8 @@ RUN pip install --upgrade pip \
     && pip install --no-cache-dir --timeout 1200 \
     -i https://pypi.org/simple --trusted-host pypi.org \
     torch==2.3.1 torchvision==0.18.1
-RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple/ \
-    && pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn \
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
+    && pip config set global.trusted-host mirrors.aliyun.com \
     && pip install --no-cache-dir --timeout 600 -r backend/requirements.txt
 COPY backend/ ./backend/
 

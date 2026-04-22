@@ -106,6 +106,7 @@
         </el-main>
       </el-container>
     </el-container>
+    <FloatingAssistant v-if="!isPublicLayout" />
   </el-config-provider>
 </template>
 
@@ -130,6 +131,7 @@ import {
   Compass,
 } from '@element-plus/icons-vue'
 import TechParticleBg from './components/cockpit/TechParticleBg.vue'
+import FloatingAssistant from './components/assistant/FloatingAssistant.vue'
 
 const route = useRoute()
 const isPublicLayout = computed(() => route.meta.public === true)

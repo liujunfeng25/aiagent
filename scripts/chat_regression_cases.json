@@ -1,0 +1,121 @@
+[
+  {
+    "id": "kpi-today",
+    "query": "今天GMV和订单数是多少？",
+    "expect_tools_any": ["get_kpi_summary"],
+    "expect_output": "card",
+    "max_sec": 8
+  },
+  {
+    "id": "rank-region",
+    "query": "今天哪个区卖得最好？",
+    "expect_tools_any": ["get_region_rank"],
+    "expect_output": "card",
+    "max_sec": 8
+  },
+  {
+    "id": "rank-category-month",
+    "query": "本月品类销售TOP10",
+    "expect_tools_any": ["get_category_distribution", "get_top_goods"],
+    "expect_output": "card",
+    "max_sec": 10
+  },
+  {
+    "id": "trend-7days-chart",
+    "query": "给我画最近7天GMV折线图",
+    "expect_tools_any": ["get_daily_trend"],
+    "expect_output": "chart",
+    "max_sec": 8
+  },
+  {
+    "id": "trend-20days-chart",
+    "query": "生成最近20天包含今天的GMV折线图",
+    "expect_tools_any": ["get_daily_trend"],
+    "expect_output": "chart",
+    "max_sec": 10
+  },
+  {
+    "id": "ops-alerts",
+    "query": "今天有哪些异常需要处理？",
+    "expect_tools_any": ["get_ops_alerts"],
+    "expect_output": "card",
+    "max_sec": 10
+  },
+  {
+    "id": "xinfadi-price",
+    "query": "最近西红柿价格走势",
+    "expect_tools_any": ["get_xinfadi_price"],
+    "expect_output": "chart",
+    "max_sec": 10
+  },
+  {
+    "id": "today-orders",
+    "query": "今天都出了哪些单",
+    "expect_tools_any": ["get_today_orders"],
+    "expect_output": "card",
+    "max_sec": 10
+  },
+  {
+    "id": "daily-report-default-docx",
+    "query": "生成昨天的日报",
+    "expect_tools_any": ["generate_report"],
+    "expect_output": "report",
+    "expect_export_formats": ["docx"],
+    "max_sec": 8
+  },
+  {
+    "id": "weekly-report-default-docx",
+    "query": "生成本周周报",
+    "expect_tools_any": ["generate_report"],
+    "expect_output": "report",
+    "expect_export_formats": ["docx"],
+    "max_sec": 8
+  },
+  {
+    "id": "monthly-report-default-docx",
+    "query": "生成本月月报",
+    "expect_tools_any": ["generate_report"],
+    "expect_output": "report",
+    "expect_export_formats": ["docx"],
+    "max_sec": 8
+  },
+  {
+    "id": "report-ppt-request",
+    "query": "生成ppt格式的今日日报",
+    "expect_tools_any": ["generate_report"],
+    "expect_output": "report",
+    "expect_export_formats": ["pptx"],
+    "max_sec": 10
+  },
+  {
+    "id": "report-md-request",
+    "query": "生成markdown格式的今日日报",
+    "expect_tools_any": ["generate_report"],
+    "expect_output": "report",
+    "expect_export_formats": ["md"],
+    "max_sec": 10
+  },
+  {
+    "id": "proposal-report",
+    "query": "帮我写海淀区夏季促销企划案",
+    "expect_tools_any": ["generate_report"],
+    "expect_output": "report",
+    "expect_export_formats": ["docx"],
+    "max_sec": 25
+  },
+  {
+    "id": "insight-brief",
+    "query": "帮我做本月经营分析简报",
+    "expect_tools_any": ["generate_report"],
+    "expect_output": "report",
+    "expect_export_formats": ["docx"],
+    "max_sec": 25
+  },
+  {
+    "id": "schema-coverage",
+    "query": "你都能查哪些数据？",
+    "expect_tools_any": ["get_schema_overview"],
+    "expect_output": "plain",
+    "max_sec": 10
+  }
+]

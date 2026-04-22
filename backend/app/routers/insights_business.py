@@ -1378,6 +1378,10 @@ def kpi_summary(
     district_name: Optional[str] = Query(
         None, description="可选：仅统计收货地址匹配该区县的订单"
     ),
+    fast_mode: bool = Query(
+        False,
+        description="true 时跳过高开销衍生指标（如首单会员），用于对时延敏感的交互场景",
+    ),
 ):
     cfg = _cfg_or_503()
     if scope == "today":
@@ -1426,10 +1430,13 @@ def kpi_summary(
                 row = dict(cur.fetchone() or {})
                 cur.execute(sql_distinct_buyers, (t0, t1) + addr_params)
                 distinct_buyers = int(dict(cur.fetchone() or {}).get("c") or 0)
-                cur.execute(
-                    sql_first_order_members, addr_params + (t0, t1),
-                )
-                first_order_members = int(dict(cur.fetchone() or {}).get("c") or 0)
+                if not fast_mode:
+                    cur.execute(
+                        sql_first_order_members, addr_params + (t0, t1),
+                    )
+                    first_order_members = int(dict(cur.fetchone() or {}).get("c") or 0)
+                else:
+                    first_order_members = 0
                 bt, ba = S.BACKORDER_TIME_COL, S.BACKORDER_AMOUNT_COL
                 try:
                     cur.execute(
@@ -1470,13 +1477,15 @@ def kpi_summary(
         "avg_ticket": avg_ticket,
         "distinct_buyers": distinct_buyers,
         "first_order_members": first_order_members,
+        "fast_mode": bool(fast_mode),
         "backorder_count": backorder_count,
         "backorder_amount": backorder_amount,
         "return_rate_by_amount_pct": return_rate_by_amount_pct,
         "metrics_note": (
             "业务库无物流/签收时间字段，无法用真实「配送及时率」；"
             "大屏「今日下单会员」为当日 DISTINCT member_id。"
-            "「退货金额占GMV」= 当日 backorder 表金额合计 / 当日 orders GMV。"
+            "「退货金额占GMV」= 当日 backorder 表金额合计 / 当日 orders GMV（两分子分母独立汇总，"
+            "若当日正向成交额很小而逆向登记金额较大，退货金额可能高于 GMV，属口径现象而非算术错误）。"
             "「今日首单会员」= 全库首笔订单时间落在当日的会员数。"
         ),
     }

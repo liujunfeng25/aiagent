@@ -1,0 +1,398 @@
+{
+  "summary": {
+    "timestamp": "2026-04-21 16:48:21",
+    "base_url": "http://127.0.0.1:8000/api",
+    "cases_file": "/Users/Admin/Documents/ai-agent/aiagent/scripts/chat_regression_cases.json",
+    "total_cases": 16,
+    "passed_cases": 13,
+    "pass_rate_pct": 81.25,
+    "latency_p50_sec": 2.7935,
+    "latency_p95_sec": 31.837249999999997,
+    "tool_coverage_top10": [
+      [
+        "generate_report",
+        7
+      ],
+      [
+        "get_daily_trend",
+        2
+      ],
+      [
+        "get_kpi_summary",
+        1
+      ],
+      [
+        "get_region_rank",
+        1
+      ],
+      [
+        "get_category_distribution",
+        1
+      ],
+      [
+        "get_ops_alerts",
+        1
+      ],
+      [
+        "get_xinfadi_price",
+        1
+      ],
+      [
+        "get_today_orders",
+        1
+      ]
+    ]
+  },
+  "results": [
+    {
+      "case_id": "kpi-today",
+      "query": "今天GMV和订单数是多少？",
+      "latency_sec": 4.031,
+      "ok_http": true,
+      "tools": [
+        "get_kpi_summary"
+      ],
+      "has_card": true,
+      "has_chart": false,
+      "has_report": false,
+      "export_formats": [
+        "docx"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": true,
+      "pass_all": true,
+      "reply_preview": "已为你整理核心指标。 <data_card>{\"type\": \"kpi\", \"title\": \"核心指标\", \"kpis\": [{\"label\": \"GMV\", \"value\": \"¥39.5万\"}, {\"label\": \"订单数\", \"v",
+      "error": ""
+    },
+    {
+      "case_id": "rank-region",
+      "query": "今天哪个区卖得最好？",
+      "latency_sec": 4.025,
+      "ok_http": true,
+      "tools": [
+        "get_region_rank"
+      ],
+      "has_card": true,
+      "has_chart": false,
+      "has_report": false,
+      "export_formats": [
+        "docx"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": true,
+      "pass_all": true,
+      "reply_preview": "已为你整理 区域销售 TOP10。 <data_card>{\"type\": \"rank\", \"title\": \"区域销售 TOP10\", \"kpis\": [{\"label\": \"上榜数量\", \"value\": \"9\"}, {\"label\":",
+      "error": ""
+    },
+    {
+      "case_id": "rank-category-month",
+      "query": "本月品类销售TOP10",
+      "latency_sec": 5.879,
+      "ok_http": true,
+      "tools": [
+        "get_category_distribution"
+      ],
+      "has_card": true,
+      "has_chart": false,
+      "has_report": false,
+      "export_formats": [
+        "docx"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": true,
+      "pass_all": true,
+      "reply_preview": "已为你整理 品类分布 TOP10。 <data_card>{\"type\": \"rank\", \"title\": \"品类分布 TOP10\", \"kpis\": [{\"label\": \"上榜数量\", \"value\": \"10\"}, {\"label\"",
+      "error": ""
+    },
+    {
+      "case_id": "trend-7days-chart",
+      "query": "给我画最近7天GMV折线图",
+      "latency_sec": 0.089,
+      "ok_http": true,
+      "tools": [
+        "get_daily_trend"
+      ],
+      "has_card": true,
+      "has_chart": true,
+      "has_report": false,
+      "export_formats": [
+        "docx"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": true,
+      "pass_all": true,
+      "reply_preview": "已为你整理近期开单趋势。 <data_card>{\"type\": \"trend\", \"title\": \"销售趋势\", \"kpis\": [{\"label\": \"窗口\", \"value\": \"2026-04-15 ~ 2026-04-21\"},",
+      "error": ""
+    },
+    {
+      "case_id": "trend-20days-chart",
+      "query": "生成最近20天包含今天的GMV折线图",
+      "latency_sec": 0.098,
+      "ok_http": true,
+      "tools": [
+        "get_daily_trend"
+      ],
+      "has_card": true,
+      "has_chart": true,
+      "has_report": false,
+      "export_formats": [
+        "docx"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": true,
+      "pass_all": true,
+      "reply_preview": "已为你整理近期开单趋势。 <data_card>{\"type\": \"trend\", \"title\": \"销售趋势\", \"kpis\": [{\"label\": \"窗口\", \"value\": \"2026-04-02 ~ 2026-04-21\"},",
+      "error": ""
+    },
+    {
+      "case_id": "ops-alerts",
+      "query": "今天有哪些异常需要处理？",
+      "latency_sec": 3.901,
+      "ok_http": true,
+      "tools": [
+        "get_ops_alerts"
+      ],
+      "has_card": true,
+      "has_chart": false,
+      "has_report": false,
+      "export_formats": [
+        "docx"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": true,
+      "pass_all": true,
+      "reply_preview": "已为你整理今日运营异常摘要。 <data_card>{\"type\": \"rank\", \"title\": \"今日运营告警\", \"kpis\": [{\"label\": \"待处理退货\", \"value\": \"33 笔\"}, {\"label\": \"退",
+      "error": ""
+    },
+    {
+      "case_id": "xinfadi-price",
+      "query": "最近西红柿价格走势",
+      "latency_sec": 4.16,
+      "ok_http": true,
+      "tools": [
+        "get_xinfadi_price"
+      ],
+      "has_card": true,
+      "has_chart": true,
+      "has_report": false,
+      "export_formats": [
+        "docx"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": true,
+      "pass_all": true,
+      "reply_preview": "已为你整理近期新发地价格走势。 <data_card>{\"type\": \"trend\", \"title\": \"新发地价格趋势\", \"kpis\": [{\"label\": \"最新均价\", \"value\": \"¥7,587/吨\"}, {\"labe",
+      "error": ""
+    },
+    {
+      "case_id": "today-orders",
+      "query": "今天都出了哪些单",
+      "latency_sec": 3.141,
+      "ok_http": true,
+      "tools": [
+        "get_today_orders"
+      ],
+      "has_card": true,
+      "has_chart": false,
+      "has_report": false,
+      "export_formats": [
+        "docx"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": true,
+      "pass_all": true,
+      "reply_preview": "已为你整理今日订单概览。 <data_card>{\"type\": \"rank\", \"title\": \"今日订单概览\", \"kpis\": [{\"label\": \"返回条数\", \"value\": \"100\"}, {\"label\": \"前10金额",
+      "error": ""
+    },
+    {
+      "case_id": "daily-report-default-docx",
+      "query": "生成昨天的日报",
+      "latency_sec": 0.566,
+      "ok_http": true,
+      "tools": [
+        "generate_report"
+      ],
+      "has_card": false,
+      "has_chart": false,
+      "has_report": true,
+      "export_formats": [
+        "docx"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": true,
+      "pass_all": true,
+      "reply_preview": "已为您生成 日报（2026-04-20 ~ 2026-04-20），可在右上角下载报告文件。 <report_content># 日报（2026-04-20 ~ 2026-04-20）  ## 一、核心指标  | 指标 | 数值 | |--",
+      "error": ""
+    },
+    {
+      "case_id": "weekly-report-default-docx",
+      "query": "生成本周周报",
+      "latency_sec": 0.678,
+      "ok_http": true,
+      "tools": [
+        "generate_report"
+      ],
+      "has_card": false,
+      "has_chart": false,
+      "has_report": true,
+      "export_formats": [
+        "docx"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": true,
+      "pass_all": true,
+      "reply_preview": "已为您生成 周报（2026-04-15 ~ 2026-04-21），可在右上角下载报告文件。 <report_content># 周报（2026-04-15 ~ 2026-04-21）  ## 一、核心指标  | 指标 | 数值 | |--",
+      "error": ""
+    },
+    {
+      "case_id": "monthly-report-default-docx",
+      "query": "生成本月月报",
+      "latency_sec": 1.45,
+      "ok_http": true,
+      "tools": [
+        "generate_report"
+      ],
+      "has_card": false,
+      "has_chart": false,
+      "has_report": true,
+      "export_formats": [
+        "docx"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": true,
+      "pass_all": true,
+      "reply_preview": "已为您生成 月报（2026-04-01 ~ 2026-04-21），可在右上角下载报告文件。 <report_content># 月报（2026-04-01 ~ 2026-04-21）  ## 一、核心指标  | 指标 | 数值 | |--",
+      "error": ""
+    },
+    {
+      "case_id": "report-ppt-request",
+      "query": "生成ppt格式的今日日报",
+      "latency_sec": 0.522,
+      "ok_http": true,
+      "tools": [
+        "generate_report"
+      ],
+      "has_card": false,
+      "has_chart": false,
+      "has_report": true,
+      "export_formats": [
+        "pptx"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": true,
+      "pass_all": true,
+      "reply_preview": "已为您生成 日报（2026-04-21 ~ 2026-04-21），可在右上角下载报告文件。 <report_content># 日报（2026-04-21 ~ 2026-04-21）  ## 一、核心指标  | 指标 | 数值 | |--",
+      "error": ""
+    },
+    {
+      "case_id": "report-md-request",
+      "query": "生成markdown格式的今日日报",
+      "latency_sec": 0.521,
+      "ok_http": true,
+      "tools": [
+        "generate_report"
+      ],
+      "has_card": false,
+      "has_chart": false,
+      "has_report": true,
+      "export_formats": [
+        "md"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": true,
+      "pass_all": true,
+      "reply_preview": "已为您生成 日报（2026-04-21 ~ 2026-04-21），可在右上角下载报告文件。 <report_content># 日报（2026-04-21 ~ 2026-04-21）  ## 一、核心指标  | 指标 | 数值 | |--",
+      "error": ""
+    },
+    {
+      "case_id": "proposal-report",
+      "query": "帮我写海淀区夏季促销企划案",
+      "latency_sec": 39.461,
+      "ok_http": true,
+      "tools": [
+        "generate_report"
+      ],
+      "has_card": false,
+      "has_chart": false,
+      "has_report": true,
+      "export_formats": [
+        "docx"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": false,
+      "pass_all": false,
+      "reply_preview": "<report_content># 企划案（2026-03-23 ~ 2026-04-21） · 海淀区夏季促销  ## 一、背景与目标   当前海淀区在全市13个覆盖区县中表现稳健：近30天（2026-03-23至2026-04-21）实",
+      "error": ""
+    },
+    {
+      "case_id": "insight-brief",
+      "query": "帮我做本月经营分析简报",
+      "latency_sec": 29.296,
+      "ok_http": true,
+      "tools": [
+        "generate_report"
+      ],
+      "has_card": false,
+      "has_chart": false,
+      "has_report": true,
+      "export_formats": [
+        "docx"
+      ],
+      "tool_pass": true,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": false,
+      "pass_all": false,
+      "reply_preview": "<report_content># 经营分析简报（2026-03-23 ~ 2026-04-21）  ## 一、经营摘要   本分析周期（3月23日–4月21日）共实现 **GMV ¥1,732.12万元**，订单数 **8,657单**，",
+      "error": ""
+    },
+    {
+      "case_id": "schema-coverage",
+      "query": "你都能查哪些数据？",
+      "latency_sec": 2.446,
+      "ok_http": true,
+      "tools": [],
+      "has_card": false,
+      "has_chart": false,
+      "has_report": false,
+      "export_formats": [
+        "docx"
+      ],
+      "tool_pass": false,
+      "output_pass": true,
+      "format_pass": true,
+      "latency_pass": true,
+      "pass_all": false,
+      "reply_preview": "请问您想查询哪类数据？例如销售排名、商品排名、日报/周报/月报、企划案、经营简报、区域趋势或KPI指标等？",
+      "error": ""
+    }
+  ]
+}

@@ -30,6 +30,7 @@ from app.routers import (
     logistics,
     governance_demo,
     map_tiles,
+    chat,
 )
 from app.xinfadi.routes import router as xinfadi_router
 
@@ -58,6 +59,7 @@ app.include_router(documents.router, prefix="/api/doc", tags=["documents"])
 app.include_router(xinfadi_router)
 app.include_router(logistics.router, prefix="/api/logistics", tags=["logistics"])
 app.include_router(governance_demo.router, prefix="/api/governance", tags=["governance_demo"])
+app.include_router(chat.router, prefix="/api/chat", tags=["ai_chat"])
 
 # 测试图片静态文件（vegetable-recognition 集成）
 if TEST_IMAGES_DIR.exists():

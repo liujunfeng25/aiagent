@@ -64,6 +64,14 @@ services:
       # 乐橙(IMOU)摄像头
       - IMOU_APP_ID=lc8bd3fe83f0e9460b
       - IMOU_APP_SECRET=36ab7437dabd488da728f4f2b527e4
+      # AI 业务分析助手（悬浮球）：dashscope=阿里云百炼；无 AI_API_KEY 时会自动走 mock
+      - AI_PROVIDER=${AI_PROVIDER:-dashscope}
+      - AI_API_KEY=${AI_API_KEY:-}
+      - AI_BASE_URL=${AI_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      - AI_MODEL_PLANNER=${AI_MODEL_PLANNER:-qwen-plus}
+      - AI_MODEL_ANSWER=${AI_MODEL_ANSWER:-qwen-max}
+      - ASSISTANT_COMPANY_NAME=${ASSISTANT_COMPANY_NAME:-食迅易联}
+      - ASSISTANT_INTERNAL_API_BASE=http://127.0.0.1:8000/api/insights/business
     restart: unless-stopped
 
 volumes:
