@@ -100,11 +100,38 @@
 
 .sx-asst-orb__mark {
   position: relative;
-  width: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
   height: 20px;
-  color: rgba(255, 255, 255, 0.92);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.97);
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+  text-shadow:
+    0 0 4px rgba(255, 255, 255, 0.55),
+    0 0 10px rgba(103, 232, 249, 0.45),
+    0 0 16px rgba(168, 85, 247, 0.28);
+  animation: sx-orb-ai-glow 2.2s ease-in-out infinite;
   z-index: 3;
+}
+
+@keyframes sx-orb-ai-glow {
+  0%, 100% {
+    text-shadow:
+      0 0 3px rgba(255, 255, 255, 0.5),
+      0 0 8px rgba(103, 232, 249, 0.38),
+      0 0 12px rgba(168, 85, 247, 0.24);
+  }
+  50% {
+    text-shadow:
+      0 0 5px rgba(255, 255, 255, 0.62),
+      0 0 12px rgba(103, 232, 249, 0.52),
+      0 0 18px rgba(168, 85, 247, 0.34);
+  }
 }
 
 .sx-asst-orb__sparkle {

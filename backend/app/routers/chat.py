@@ -712,17 +712,17 @@ def _build_analytical_markdown(report_result: dict[str, Any]) -> str:
 
     if rt == "proposal":
         lines.append("## 三、策略动作（企划案）")
-        lines.append("- 动作1：对头部区域做定向活动，目标提升复购与客单价。")
-        lines.append("- 动作2：围绕头部品类做组合包，提高连带率。")
-        lines.append("- 动作3：对高退货品项建立预警阈值，减少异常损耗。")
+        lines.append("- 动作1：围绕头部区域拓展重点单位客户（机关/学校/医院），提升稳定采购规模。")
+        lines.append("- 动作2：针对头部品类优化集采清单与档口供给组合，提高履约稳定性与品类覆盖。")
+        lines.append("- 动作3：对高退货品项建立履约预警阈值，联动仓配与质控降低异常损耗。")
         lines.append("")
         lines.append("## 四、资源与排期")
         lines.append("- 周期：建议 2-4 周；第1周准备，第2-3周执行，第4周复盘。")
-        lines.append("- 资源：运营、供应链、区域BD协同推进。")
+        lines.append("- 资源：运营、供应链、区域政企BD与履约团队协同推进。")
     else:
         lines.append("## 三、行动建议（经营简报）")
-        lines.append("- 短期（本周）：聚焦高潜区域，压降退货与补单。")
-        lines.append("- 中期（本月）：围绕头部品类做结构优化，稳定毛利与复购。")
+        lines.append("- 短期（本周）：聚焦高潜区域单位客户，压降退货与补单，保障履约稳定。")
+        lines.append("- 中期（本月）：围绕头部品类优化集采结构，稳定毛利与采购频次。")
         lines.append("- 复盘：按周跟踪 GMV、退货率、补单率。")
 
     return "\n".join(lines)

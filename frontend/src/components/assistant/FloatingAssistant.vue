@@ -33,29 +33,7 @@
       <span class="sx-asst-orb__halo" aria-hidden="true" />
       <span class="sx-asst-orb__ring" aria-hidden="true" />
       <span class="sx-asst-orb__core" aria-hidden="true" />
-      <svg
-        class="sx-asst-orb__mark"
-        viewBox="0 0 24 24"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M12 3.2c-3.9 0-7 2.7-7 6.1 0 2.1 1.2 3.9 3.1 5v1.3c0 .4.3.8.7.9l2 .4v1.5c0 .4.3.8.8.8h.8c.4 0 .8-.3.8-.8v-1.5l2-.4c.4-.1.7-.5.7-.9v-1.3c1.9-1.1 3.1-2.9 3.1-5 0-3.4-3.1-6.1-7-6.1Z"
-          stroke="currentColor"
-          stroke-width="1.4"
-          stroke-linejoin="round"
-          fill="rgba(255,255,255,0.12)"
-        />
-        <circle cx="9.6" cy="9.8" r="1" fill="currentColor" />
-        <circle cx="14.4" cy="9.8" r="1" fill="currentColor" />
-        <path
-          d="M9.8 13.2c.6.4 1.3.6 2.2.6s1.6-.2 2.2-.6"
-          stroke="currentColor"
-          stroke-width="1.2"
-          stroke-linecap="round"
-          fill="none"
-        />
-      </svg>
+      <span class="sx-asst-orb__mark" aria-hidden="true">AI</span>
       <span class="sx-asst-orb__sparkle sx-asst-orb__sparkle--a" aria-hidden="true" />
       <span class="sx-asst-orb__sparkle sx-asst-orb__sparkle--b" aria-hidden="true" />
     </button>

@@ -324,7 +324,7 @@ TOOLS: list[dict[str, Any]] = [
                     },
                     "topic": {
                         "type": "string",
-                        "description": "企划案主题，如「夏季促销」「海淀区会员复购」「端午礼盒上新」；report_type=proposal 时必填。",
+                        "description": "企划案主题，如「夏季集采保障」「海淀区机关单位客户拓展」「学校档口端午供给方案」；report_type=proposal 时必填。",
                     },
                     "district_name": {"type": "string"},
                 },

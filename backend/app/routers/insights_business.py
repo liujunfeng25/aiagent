@@ -407,7 +407,7 @@ def region_distribution(
     }
 
 
-_COCKPIT_MAP_POINTS_MAX = 500
+_COCKPIT_MAP_POINTS_MAX = 2000
 _MAX_MEMBER_ORDERS_IN_RANGE = 500
 
 
@@ -530,6 +530,10 @@ def cockpit_customer_map_points(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
     limit: int = Query(200, ge=1, le=_COCKPIT_MAP_POINTS_MAX),
+    district_name: Optional[str] = Query(
+        None,
+        description="可选：仅统计收货地址匹配该区县的订单（与地图区县名称一致）",
+    ),
 ):
     """智能驾驶舱地图：按收货地址聚合订单数/GMV（同一地址仅一个落点）；地理编码与智能排线同源。"""
     cfg = _cfg_or_503()
@@ -544,6 +548,7 @@ def cockpit_customer_map_points(
     mreal = S.ORDERS_MEMBER_NAME_COL
     mlogin = S.ORDERS_MEMBER_LOGIN_COL
     ta = S.ORDERS_AMOUNT_COL
+    addr_fr, addr_params = _orders_addr_filter_fragment(maddr, "o", district_name)
     sql = f"""
         SELECT TRIM(o.`{maddr}`) AS address,
                COUNT(*) AS order_count,
@@ -557,7 +562,7 @@ def cockpit_customer_map_points(
                )) AS customer_name
         FROM `{otbl}` o
         WHERE o.`{ot}` >= %s AND o.`{ot}` <= %s
-          AND NULLIF(TRIM(o.`{maddr}`), '') IS NOT NULL
+          AND NULLIF(TRIM(o.`{maddr}`), '') IS NOT NULL{addr_fr}
         GROUP BY TRIM(o.`{maddr}`)
         ORDER BY order_count DESC
         LIMIT %s
@@ -567,7 +572,7 @@ def cockpit_customer_map_points(
     try:
         try:
             with conn.cursor() as cur:
-                cur.execute(sql, (t0, t1, limit))
+                cur.execute(sql, (t0, t1) + addr_params + (limit,))
                 rows_raw = [_jsonable_row(dict(r)) for r in cur.fetchall()]
         except pymysql.MySQLError as e:
             raise HTTPException(
@@ -639,6 +644,7 @@ def cockpit_customer_map_points(
     return {
         "start_date": start.isoformat(),
         "end_date": end.isoformat(),
+        "district_name": _normalize_district_name_param(district_name),
         "points": points,
         "failed_geocode_count": failed,
         "geocode_enabled": bool(amap_key()),
@@ -666,19 +672,25 @@ _BJ_DISTRICT_LIKE_ORDER: tuple[str, ...] = (
     "东城区",
 )
 
+_XIONGAN_ALIASES: tuple[str, ...] = ("容城县", "雄县", "安新县")
+
 
 def _beijing_district_case_sql(addr_col: str) -> str:
     # PyMySQL mogrify 用 % 做占位符，SQL 里 LIKE 的 % 必须写成 %%，否则会 ValueError
+    xiongan_parts = [
+        f"WHEN TRIM(o.`{addr_col}`) LIKE '%%{name}%%' THEN '雄安'" for name in _XIONGAN_ALIASES
+    ]
+    xiongan_parts.append(f"WHEN TRIM(o.`{addr_col}`) LIKE '%%雄安%%' THEN '雄安'")
     parts = [
         f"WHEN TRIM(o.`{addr_col}`) LIKE '%%{name}%%' THEN '{name}'"
         for name in _BJ_DISTRICT_LIKE_ORDER
     ]
-    return "CASE " + " ".join(parts) + " ELSE NULL END"
+    return "CASE " + " ".join(xiongan_parts + parts) + " ELSE NULL END"
 
 
 # 与地图 GeoJSON 命名及白名单一致；雄安三县等可在此扩展
 _DISTRICT_NAMES_ALLOWED: frozenset[str] = frozenset(
-    _BJ_DISTRICT_LIKE_ORDER + ("容城县", "雄县", "安新县"),
+    _BJ_DISTRICT_LIKE_ORDER + _XIONGAN_ALIASES + ("雄安",),
 )
 
 
@@ -688,6 +700,8 @@ def _normalize_district_name_param(district_name: Optional[str]) -> Optional[str
     t = str(district_name).strip()
     if not t or t not in _DISTRICT_NAMES_ALLOWED:
         return None
+    if t in _XIONGAN_ALIASES:
+        return "雄安"
     return t
 
 
@@ -702,6 +716,15 @@ def _orders_addr_filter_fragment(
         return "", ()
     pref = f"{table_alias}." if table_alias else ""
     ref = f"{pref}`{addr_col}`"
+    if d == "雄安":
+        likes = tuple(f"%{name}%" for name in _XIONGAN_ALIASES) + ("%雄安%",)
+        return (
+            (
+                f" AND NULLIF(TRIM({ref}), '') IS NOT NULL AND "
+                f"(TRIM({ref}) LIKE %s OR TRIM({ref}) LIKE %s OR TRIM({ref}) LIKE %s OR TRIM({ref}) LIKE %s)"
+            ),
+            likes,
+        )
     return (
         f" AND NULLIF(TRIM({ref}), '') IS NOT NULL AND TRIM({ref}) LIKE %s",
         (f"%{d}%",),
